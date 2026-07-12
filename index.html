@@ -724,6 +724,16 @@ function openScreen(s,arg,noPush){
 function closePanel(){panelOpen=false;panel.classList.remove("open");navStack=[];sellMode=false;sellSel=new Set();}
 let sellMode=false,sellSel=new Set();
 
+/* simple circular countdown: fills as frac goes 0 -> 1 */
+function ringTimer(frac){
+  frac=Math.max(0,Math.min(1,frac));
+  const r=8,c=2*Math.PI*r;
+  return '<svg width="24" height="24" viewBox="0 0 24 24" style="flex:none">'+
+    '<circle cx="12" cy="12" r="'+r+'" fill="none" stroke="#08343B" stroke-width="4"/>'+
+    '<circle cx="12" cy="12" r="'+r+'" fill="none" stroke="#7CFC5A" stroke-width="4" '+
+    'stroke-dasharray="'+(c*frac).toFixed(2)+' '+c.toFixed(2)+'" transform="rotate(-90 12 12)"/></svg>';
+}
+
 /* upgrade row styled like the original: colored name/cost card, blue description, buy buttons */
 function upgRow(name,lvl,cost,descHtml,act,multi){
   const can=S.dirt>=cost;
@@ -816,8 +826,9 @@ function renderScreen(){
       const lvl=S.quarry[i];
       const desc=lvl===0
         ?"+"+fmt(q.amt*quarryMult())+" dirt per "+Math.round(quarryTime(i))+"s"
-        :"Generating +"+fmt(q.amt*lvl*quarryMult())+" dirt per "+Math.round(quarryTime(i))+"s"+
-         '<div class="qtimer"><div style="width:'+Math.min(100,S.qTimers[i]/quarryTime(i)*100)+'%"></div></div>';
+        :'<div style="display:flex;align-items:center;gap:8px;justify-content:center">'+
+         ringTimer(S.qTimers[i]/quarryTime(i))+
+         '<span>Generating +'+fmt(q.amt*lvl*quarryMult())+' dirt per '+Math.round(quarryTime(i))+'s</span></div>';
       h+=upgRow(lvl===0?"Build "+q.name:q.name,lvl===0?null:lvl,quarryCost(i),desc,"q-"+i,lvl>0);
     });
   }
