@@ -243,14 +243,14 @@ const SLOTS={
 };
 const SLOT_KEYS=Object.keys(SLOTS);
 /* quarry: the original's 6 mines */
-/* level-1 payback tuned to ~12-30 min per tier; output doubles every 10 levels */
+/* level-1 payback ~45-100 min per tier: a solid secondary income, not the whole game */
 const QUARRY=[
-  {key:"dirt",   name:"Dirt Mine",   amt:20,   time:10, cost:1.5e3},
-  {key:"coal",   name:"Coal Mine",   amt:320,  time:15, cost:2e4},
-  {key:"copper", name:"Copper Mine", amt:4500, time:20, cost:2.5e5},
-  {key:"silver", name:"Silver Mine", amt:55000,time:25, cost:3e6},
-  {key:"gold",   name:"Gold Mine",   amt:7.5e5,time:30, cost:4e7},
-  {key:"diamond",name:"Diamond Mine",amt:1.3e7,time:40, cost:6e8},
+  {key:"dirt",   name:"Dirt Mine",   amt:6,    time:10, cost:1.5e3},
+  {key:"coal",   name:"Coal Mine",   amt:90,   time:15, cost:2e4},
+  {key:"copper", name:"Copper Mine", amt:1250, time:20, cost:2.5e5},
+  {key:"silver", name:"Silver Mine", amt:16000,time:25, cost:3e6},
+  {key:"gold",   name:"Gold Mine",   amt:2.3e5,time:30, cost:4e7},
+  {key:"diamond",name:"Diamond Mine",amt:4e6,  time:40, cost:6e8},
 ];
 /* research lab: the original's 8 one-time researches */
 const RESEARCH=[
@@ -370,7 +370,7 @@ function specialChance(){
   if(S.boostUntil>now()&&S.generator>=2)c*=2; /* Foreman Boost */
   return Math.min(0.85,c);
 }
-function mineMilestone(i){return Math.pow(2,Math.floor(S.quarry[i]/10));} /* x2 every 10 levels */
+function mineMilestone(i){return Math.pow(1.5,Math.floor(S.quarry[i]/10));} /* x1.5 every 10 levels */
 function quarryPayout(i){return QUARRY[i].amt*S.quarry[i]*mineMilestone(i)*quarryMult();}
 function quarryRate(i){ /* dirt per second for display */
   if(S.quarry[i]<1)return 0;
@@ -908,7 +908,7 @@ function renderScreen(){
         :'<div style="display:flex;align-items:center;gap:8px;justify-content:center">'+
          ringTimer(S.qTimers[i]/quarryTime(i))+
          '<span>+'+fmt(quarryPayout(i))+' dirt per '+Math.round(quarryTime(i))+'s</span></div>'+
-         '<div style="font-size:9.5px;margin-top:3px">Output x'+mineMilestone(i)+' | doubles at lvl '+((Math.floor(lvl/10)+1)*10)+'</div>';
+         '<div style="font-size:9.5px;margin-top:3px">Output x'+trim(mineMilestone(i))+' | x1.5 at lvl '+((Math.floor(lvl/10)+1)*10)+'</div>';
       h+=upgRow(lvl===0?"Build "+q.name:q.name,lvl===0?null:lvl,quarryCost(i),desc,"q-"+i,lvl>0);
     });
   }
@@ -1089,7 +1089,7 @@ function renderScreen(){
       '<h4>Leaderboard</h4>Open MENU, Leaderboard and set your miner name to compete worldwide on all-time dirt!'+
       '<h4>Special Blocks</h4>Coal gives 2x the value of a dirt block, Copper 4x, Silver 6x, Gold 11x and Diamonds 100x. Gnome blocks hire a gnome worker who brings you dirt equal to 5 random blocks.'+
       '<h4>Upgrades</h4>Open the UPGRADES tab on the right of the screen. Upgrades are colour coded: green means you can afford them, red means you cannot. Percentage upgrades are expensive but shine later in the game.'+
-      '<h4>Quarry</h4>Build and upgrade 6 different mines that collect dirt automatically over time. Every 10th level a mine hits a milestone and its output doubles!'+
+      '<h4>Quarry</h4>Build and upgrade 6 different mines that collect dirt automatically over time. Every 10th level a mine hits a milestone and its output jumps x1.5!'+
       '<h4>Items</h4>Items come in WHITE, GREEN, BLUE, PURPLE, YELLOW and RED rarity. Red items form two sets: OF DIGGING and OF PRODUCTION. Equipping all 5 of a set activates a powerful free event every 5 minutes.'+
       '<h4>Generator</h4>The generator charges over time. When the digger glows, tap it to activate a powerful boost.'+
       '<h4>Energy</h4>The Energy Tap absorbs 5 energy every 15s, up to 1,000. Spend energy on events in the ENERGY tab.'+
@@ -1656,6 +1656,15 @@ function saveMeta(){try{localStorage.setItem("dirt-inc-v2-meta",JSON.stringify(M
 setInterval(()=>{save();saveMeta();},5000);
 addEventListener("pagehide",()=>{save();saveMeta();});
 addEventListener("visibilitychange",()=>{if(document.hidden){save();saveMeta();}});
+
+/* =================== ONE-TIME BALANCE GIFT =================== */
+/* fish gets compensation for the head start Jared earned during the OP-quarry era */
+if((META.playerName||"").toLowerCase()==="fish"&&!META.fishComp1){
+  META.fishComp1=true;saveMeta();
+  const gift=450e6;
+  earnDirt(gift);save();
+  setTimeout(()=>toast("Management sent you "+fmt(gift)+" dirt to catch up to Jared. Go get him!"),1500);
+}
 
 /* =================== INIT =================== */
 if(S.energyTap)document.getElementById("tab-energy").style.display="block";
