@@ -1431,7 +1431,9 @@ function tick(){
     const T=quarryTime(i);
     while(S.qTimers[i]>=T){
       S.qTimers[i]-=T;
-      earnDirt(QUARRY[i].amt*S.quarry[i]*quarryMult());
+      const q=QUARRY[i].amt*S.quarry[i]*quarryMult();
+      earnDirt(q);
+      floatText("+"+fmt(q),232,SURFACE-24); /* little green number next to the quarry */
     }
   }
   /* generator charge */
@@ -1469,6 +1471,25 @@ setInterval(()=>{renderHud();if(panelOpen&&(screen==="quarry"||screen==="energy"
       },500);
     }
   }
+})();
+
+/* =================== AUTO-UPDATE =================== */
+/* poll the server for a new deploy; when one lands, save and hard-reload */
+(function(){
+  let tag=null;
+  async function check(){
+    try{
+      const r=await fetch(location.pathname+"?uc="+Date.now(),{method:"HEAD",cache:"no-store"});
+      const t=r.headers.get("etag")||r.headers.get("last-modified");
+      if(!t)return;
+      if(tag===null){tag=t;return;}
+      if(t!==tag){
+        save();saveMeta();
+        location.replace(location.pathname+"?v="+Date.now());
+      }
+    }catch(e){}
+  }
+  check();setInterval(check,120000);
 })();
 
 /* =================== SAVE =================== */
