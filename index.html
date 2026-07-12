@@ -7,7 +7,7 @@
     --lime:#7CFC5A; --red:#FF5A4A; --purple:#C77DFF;
     --hud:#101418; --paper:#F2EFE4;
   }
-  *{box-sizing:border-box;margin:0;padding:0;}
+  *{box-sizing:border-box;margin:0;padding:0;touch-action:manipulation;}
   html,body{height:100%;}
   body{
     background:#0B0D10;
@@ -29,12 +29,12 @@
   #prog-bar{flex:1;height:10px;background:#26221C;border:2px solid #3B3428;position:relative;}
   #prog-fill{height:100%;width:0%;background:repeating-linear-gradient(90deg,#5FA843 0 6px,#4C8A34 6px 12px);}
   #prog-text{font-size:10px;color:#C8C2B0;white-space:nowrap;font-variant-numeric:tabular-nums;}
-  #dirt-count{text-align:center;font-size:17px;color:#FFF;margin-top:3px;letter-spacing:.5px;
+  #dirt-count{text-align:center;font-size:22px;color:#FFF;margin-top:3px;letter-spacing:.5px;
     font-variant-numeric:tabular-nums;text-shadow:2px 2px 0 #000;}
-  #mult-line{text-align:center;font-size:10px;color:#8FD46A;font-variant-numeric:tabular-nums;}
   /* SCENE */
   #scene-wrap{position:relative;flex:1;overflow:hidden;background:#000;}
-  canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;cursor:pointer;}
+  canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;cursor:pointer;
+    touch-action:none;-webkit-touch-callout:none;}
   #fx-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
   .float{position:absolute;font-size:14px;color:var(--lime);text-shadow:1px 1px 0 #000;
     animation:rise 1.1s ease-out forwards;pointer-events:none;white-space:nowrap;font-weight:bold;}
@@ -91,7 +91,7 @@
   .upg-cost.can{color:var(--lime);} .upg-cost.cant{color:var(--red);}
   .upg-desc{flex:1;font-size:11.5px;color:#EAF6F8;line-height:1.35;}
   .upg-desc .lvl{color:var(--yellow);font-size:10px;}
-  .upg-desc .sub{color:#9FD9E2;font-size:10px;}
+  .upg-desc .sub{display:block;color:#9FD9E2;font-size:10px;}
   .upg-buy{flex:none;}
   .qtimer{height:6px;background:#08343B;margin-top:4px;}
   .qtimer div{height:100%;background:var(--lime);}
@@ -122,6 +122,14 @@
   #crate-reveal{text-align:center;padding:20px;font-size:13px;line-height:1.8;}
   .hint-block{font-size:11px;line-height:1.7;color:#EAF6F8;padding:4px 8px;}
   .hint-block h4{color:var(--yellow);margin:8px 0 2px;font-size:12px;}
+  .lb-input{flex:1;min-width:0;background:#0E434C;border:2px solid #0A343B;color:#FFF;
+    font-family:inherit;font-weight:bold;font-size:13px;padding:8px;-webkit-user-select:text;user-select:text;}
+  .lb-row{display:flex;gap:8px;background:#0E434CE0;border:2px solid #0A343B;padding:7px 10px;
+    font-size:12px;align-items:center;}
+  .lb-row .rank{flex:none;width:28px;color:var(--yellow);}
+  .lb-row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lb-row .sc{flex:none;color:var(--lime);font-variant-numeric:tabular-nums;}
+  .lb-row.me{border-color:var(--lime);}
 </style>
 
 <div id="phone">
@@ -131,10 +139,9 @@
       <span id="prog-text">0 / 1b</span>
     </div>
     <div id="dirt-count">0 Dirt</div>
-    <div id="mult-line">Multiplier x1.00</div>
   </div>
   <div id="scene-wrap">
-    <canvas id="cv" width="256" height="384"></canvas>
+    <canvas id="cv" width="320" height="480"></canvas>
     <div id="fx-layer"></div>
     <button id="tab-menu" class="side-tab">MENU</button>
     <button id="tab-upg" class="side-tab">UPGRADES</button>
@@ -178,7 +185,7 @@ const SPECIALS={
 const WORLDS=[
   {name:"Topsoil",goal:1e9,
    day:["#8ED0EC","#C9EAF7"],night:["#0B1030","#1B2450"],grass:"#5FA843",
-   dirtA:[122,74,33],dirtB:[150,94,44],stone:"#6E6E6E",headline:null},
+   dirtA:[138,82,38],dirtB:[176,112,58],stone:"#6E6E6E",headline:null},
   {name:"Undersea",goal:5e10,
    day:["#2E7FB8","#7FC4E8"],night:["#0A2038","#123050"],grass:"#3A8F8A",
    dirtA:[70,84,60],dirtB:[95,110,75],stone:"#4E6E7E",headline:"World Powers Fight for Undersea Minerals!"},
@@ -270,7 +277,7 @@ function freshRun(){
   return {
     dirt:0, lifetime:0,
     baseDirt:1,
-    tapLvl:0, digLvl:0, refLvl:0, foreLvl:0, gnomeLvl:0,
+    tapLvl:0, digLvl:0, motorLvl:0, refLvl:0, foreLvl:0, gnomeLvl:0,
     pct:{tap:0,dig:0,quarry:0,ref:0,all:0},
     quarry:QUARRY.map(()=>0), qTimers:QUARRY.map(()=>0),
     research:{},
@@ -320,19 +327,21 @@ function tapsNeeded(){return Math.max(1,3-Math.min(S.tapLvl,2));}
 function blocksPerTap(){return 1+Math.max(0,S.tapLvl-2);}
 function diggerInterval(){
   if(S.digLvl<1)return Infinity;
-  let base=Math.max(1,5-Math.floor((S.digLvl-1)/2));
-  base/= (1+itemBonus("boots")/100);
+  let base=4*Math.pow(0.72,Math.floor(S.digLvl/2)); /* every even level: ~28% faster */
+  base/=(1+S.motorLvl*0.08);
+  base/=(1+itemBonus("boots")/100);
   if(S.boostUntil>now())base/=2;
-  return base;
+  return Math.max(0.25,base);
 }
 function diggerBlocks(){
   if(S.digLvl<1)return 0;
-  return (1+Math.ceil((S.digLvl-1)/2))*(hasR("dig")?2:1);
+  return (1+Math.floor((S.digLvl-1)/2))*(hasR("dig")?2:1); /* every odd level 3+: +1 block */
 }
 function specialChance(){
-  let c=0.10+S.foreLvl*0.01+(S.gnomeLvl>0?Math.floor(S.gnomeLvl/2)*0.01:0);
+  /* starts sparse like the original; upgrades slowly turn the whole field to ore */
+  let c=0.02+S.foreLvl*0.01+(S.gnomeLvl>0?Math.floor(S.gnomeLvl/2)*0.01:0);
   if(S.boostUntil>now()&&S.generator>=2)c*=2; /* Foreman Boost */
-  return Math.min(0.6,c);
+  return Math.min(0.85,c);
 }
 function quarryRate(i){ /* dirt per second for display */
   if(S.quarry[i]<1)return 0;
@@ -346,7 +355,8 @@ function quarryMult(){
 function quarryTime(i){return QUARRY[i].time*(1-itemBonus("jacket")/100);}
 /* costs */
 const tapCost=()=>Math.round((S.tapLvl===0?100:S.tapLvl===1?2500:5e4*Math.pow(40,S.tapLvl-2))*priceMod());
-const digCost=()=>Math.round(500*Math.pow(6,S.digLvl)*priceMod());
+const digCost=()=>Math.round(400*Math.pow(4,S.digLvl)*priceMod());
+const motorCost=()=>Math.round(1200*Math.pow(1.8,S.motorLvl)*priceMod());
 const refCost=()=>Math.round(1000*Math.pow(7,S.refLvl)*priceMod());
 const foreCost=()=>Math.round(2500*Math.pow(5,S.foreLvl)*priceMod());
 const gnomeCost=()=>Math.round(15000*Math.pow(6,S.gnomeLvl)*priceMod());
@@ -394,9 +404,10 @@ function floatText(txt,x,y,cls){
 }
 
 /* =================== BLOCK FIELD =================== */
-const COLS=8,VROWS=10,BS=32;   /* logical block size 32px */
-const LW=256,LH=384,SURFACE=64;
+const COLS=16,ROWS=21,BS=20;   /* dense field like the original: 16x21 = 336 blocks per layer */
+const LW=320,LH=480,SURFACE=60;
 let rows=[];                    /* rows[r][c] = block object */
+let flashT=0;                   /* layer-clear flash */
 function hash(n){let x=Math.sin(n*127.1+S.depth*311.7)*43758.5453;return x-Math.floor(x);}
 function makeRow(depthIdx){
   const r=[];
@@ -420,21 +431,37 @@ function makeRow(depthIdx){
   return r;
 }
 function initField(){
-  rows=[];for(let i=0;i<VROWS+2;i++)rows.push(makeRow(i));
-  for(let r=0;r<2;r++)for(const b of rows[r]){b.dug=true;b.type="dirt";}
+  rows=[];for(let i=0;i<ROWS;i++)rows.push(makeRow(i));
 }
 initField();
+/* restore mid-layer progress from the save: everything behind the miner is already dug */
+S.row=Math.max(0,Math.min(ROWS-1,S.row|0));
+S.col=Math.max(0,Math.min(COLS-1,S.col|0));
+for(let r=0;r<S.row;r++)for(const b of rows[r])b.dug=true;
+if(rows[S.row]){
+  if(S.dir>0){for(let c=0;c<S.col;c++)rows[S.row][c].dug=true;}
+  else{for(let c=COLS-1;c>S.col;c--)rows[S.row][c].dug=true;}
+}
 
-function currentBlock(){return rows[2]&&rows[2][S.col];}
+function currentBlock(){return rows[S.row]&&rows[S.row][S.col];}
+function layerCleared(){
+  S.depth++;
+  const bonus=blockValue()*COLS*ROWS*0.3*(1+S.depth*0.08);
+  earnDirt(bonus);
+  flashT=1;
+  toast("LAYER "+fmtInt(S.depth)+" CLEARED! +"+fmt(bonus)+" bonus dirt!");
+  S.row=0;S.col=0;S.dir=1;
+  initField();
+}
 function advance(){
+  S.tapsOnBlock=0;
   S.col+=S.dir;
   if(S.col>=COLS||S.col<0){
     S.col=Math.max(0,Math.min(COLS-1,S.col));
     S.dir*=-1;
-    rows.shift();rows.push(makeRow(0));
-    S.depth++;
+    S.row++;
+    if(S.row>=ROWS)layerCleared();
   }
-  S.tapsOnBlock=0;
 }
 function digBlock(byTap,silent){
   const b=currentBlock();if(!b)return 0;
@@ -450,12 +477,12 @@ function digBlock(byTap,silent){
   }
   if(b.type==="gnome"){spawnGnome();val=0;}
   else if(b.type==="crate"){S.crateCount++;S.stats.crates++;bumpContract("crates");toast("You found an item crate!");val=blockValue();}
-  else if(b.type==="energy"){S.energy=Math.min(1000,S.energy+50);val=0;if(!silent)floatText("+50 Energy",gx(S.col),gy(2),"special");}
+  else if(b.type==="energy"){S.energy=Math.min(1000,S.energy+50);val=0;if(!silent)floatText("+50 Energy",gx(S.col),gy(S.row),"special");}
   if(val>0){
     val*=byTap?tapMult():pctMult("dig");
     earnDirt(val);
-    if(!silent)floatText("+"+fmt(val),gx(S.col),gy(2),label?"special":"");
-    if(label&&!silent)floatText(label,gx(S.col),gy(2)-16,"special");
+    if(!silent)floatText("+"+fmt(val),gx(S.col),gy(S.row),label?"special":"");
+    if(label&&!silent)floatText(label,gx(S.col),gy(S.row)-16,"special");
   }
   advance();
   return val;
@@ -500,9 +527,14 @@ function handleTap(px,py){
   renderHud();
 }
 cv.addEventListener("pointerdown",e=>{
+  e.preventDefault();
   const r=cv.getBoundingClientRect();
   handleTap((e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height);
 });
+/* kill mobile double-tap / pinch zoom glitches */
+cv.addEventListener("touchend",e=>e.preventDefault(),{passive:false});
+document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false});
+document.addEventListener("gesturestart",e=>e.preventDefault());
 addEventListener("keydown",e=>{
   if((e.key===" "||e.key==="Enter")&&!panelOpen){e.preventDefault();handleTap(0.5,0.6);}
 });
@@ -587,6 +619,31 @@ function doPrestige(){
   closePanel();renderHud();
 }
 
+/* =================== LEADERBOARD =================== */
+const LB_API="https://dirt-inc-leaderboard.netlify.app/api/scores";
+let lbState="idle",lbData=[];
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function lbRowsHtml(){
+  if(lbState==="loading")return '<div class="center-note">Loading scores...</div>';
+  if(lbState==="error")return '<div class="center-note" style="color:var(--red)">Could not reach the leaderboard. Check your connection!</div>';
+  if(!lbData.length)return '<div class="center-note">No miners on the board yet. Be the first!</div>';
+  return lbData.map((e,i)=>'<div class="lb-row'+(e[0]===META.playerName?" me":"")+'">'+
+    '<span class="rank">'+(i+1)+'.</span><span class="nm">'+esc(e[0])+'</span><span class="sc">'+fmt(e[1])+'</span></div>').join("");
+}
+function lbUpdateList(){const el=document.getElementById("lb-list");if(el)el.innerHTML=lbRowsHtml();}
+function lbSubmit(){
+  if(!META.playerName)return Promise.resolve();
+  return fetch(LB_API,{method:"POST",body:JSON.stringify({name:META.playerName,score:Math.round(META.allLifetime)})}).catch(()=>{});
+}
+async function lbRefresh(){
+  lbState="loading";lbUpdateList();
+  await lbSubmit();
+  try{const r=await fetch(LB_API);lbData=await r.json();lbState="ok";}
+  catch(e){lbState="error";}
+  lbUpdateList();
+}
+setInterval(()=>{if(META.playerName)lbSubmit();},180000);
+
 /* =================== PANEL SYSTEM =================== */
 const panel=document.getElementById("panel");
 const pTitle=document.getElementById("panel-title");
@@ -606,6 +663,7 @@ function openScreen(s,arg,noPush){
   if(!noPush)navStack.push({s,a:arg});
   if(navStack.length>8)navStack.shift();
   renderScreen();
+  if(s==="leaderboard")lbRefresh();
 }
 function closePanel(){panelOpen=false;panel.classList.remove("open");navStack=[];sellMode=false;sellSel=new Set();}
 let sellMode=false,sellSel=new Set();
@@ -626,6 +684,7 @@ function renderScreen(){
     pTitle.textContent="MENU";
     h='<div class="btn-grid">'+
       '<button class="ybtn" data-nav="contracts">Contracts</button>'+
+      '<button class="ybtn" data-nav="leaderboard">Leaderboard</button>'+
       '<button class="ybtn" data-nav="achievements">Achievements</button>'+
       '<button class="ybtn" data-nav="stats">Statistics</button>'+
       '<button class="ybtn" data-nav="settings">Settings</button></div>';
@@ -644,6 +703,7 @@ function renderScreen(){
     pTitle.textContent="UPGRADES";
     const tab=screenArg||"main";
     pTabs.innerHTML='<button data-utab="main" class="'+(tab==="main"?"on":"")+'">Main</button>'+
+      '<button data-utab="miner" class="'+(tab==="miner"?"on":"")+'">Auto-Miner</button>'+
       '<button data-utab="pct" class="'+(tab==="pct"?"on":"")+'">Percentage</button>';
     if(tab==="main"){
       /* Tap */
@@ -651,10 +711,6 @@ function renderScreen(){
         ?"Sharpen Shovel <span class='lvl'>Level: "+S.tapLvl+"</span><span class='sub'>Dig a block in "+(tapsNeeded()-1)+" tap"+(tapsNeeded()-1>1?"s":"")+" instead of "+tapsNeeded()+"</span>"
         :"Upgrade Tap <span class='lvl'>Level: "+S.tapLvl+"</span><span class='sub'>+1 block per tap ("+(blocksPerTap()+1)+" blocks per tap)</span>";
       h+=costRow(tapCost(),tapDesc,"Buy","up-tap");
-      /* Digger */
-      const dNext=S.digLvl===0?"Auto dig 1 block per 5 seconds"
-        :(S.digLvl%2===1&&diggerInterval()>1?"Auto dig 1 second faster":"Auto dig +1 extra block");
-      h+=costRow(digCost(),"Upgrade Digger <span class='lvl'>Level: "+S.digLvl+"</span><span class='sub'>"+dNext+"</span>","Buy","up-dig");
       /* Refinery */
       h+=costRow(refCost(),"Upgrade Refinery <span class='lvl'>Level: "+S.refLvl+"</span><span class='sub'>+1 dirt per block (now "+fmt(blockValue())+" per block)</span>","Buy","up-ref");
       /* Foreman */
@@ -672,6 +728,15 @@ function renderScreen(){
       /* Energy tap */
       if(!S.energyTap){
         h+=costRow(Math.round(ENERGY_TAP_COST*priceMod()),"Build the Energy Tap<span class='sub'>Absorbs 5 energy every 15s, stores up to 1,000. Unlocks the ENERGY tab and its events.</span>","Build","up-etap");
+      }
+    }else if(tab==="miner"){
+      h+='<div class="center-note">The Auto-Miner digs for you, even while you are away. Clear a whole layer for a big bonus!</div>';
+      if(S.digLvl>0)h+='<div class="center-note" style="color:var(--lime)">Currently: '+diggerBlocks()+' block'+(diggerBlocks()>1?"s":"")+' every '+diggerInterval().toFixed(2)+'s</div>';
+      const dNext=S.digLvl===0?"Unlock: automatically digs 1 block every 4s"
+        :((S.digLvl+1)%2===0?"Digs ~28% faster":"+1 block per dig");
+      h+=costRow(digCost(),(S.digLvl===0?"Build the Auto-Miner":"Upgrade Auto-Miner")+" <span class='lvl'>Level: "+S.digLvl+"</span><span class='sub'>"+dNext+"</span>","Buy","up-dig");
+      if(S.digLvl>0){
+        h+=costRow(motorCost(),"Miner Motor <span class='lvl'>Level: "+S.motorLvl+"</span><span class='sub'>+8% auto-mine speed per level (now +"+(S.motorLvl*8)+"%)</span>","Buy","up-motor");
       }
     }else{
       const P=[["tap","Increase tapped dirt mined by 2%"],["dig","Increase digger dirt mined by 2%"],
@@ -759,6 +824,14 @@ function renderScreen(){
         '</div></div>';
     });
   }
+  else if(screen==="leaderboard"){
+    pTitle.textContent="LEADERBOARD";
+    h+='<div class="center-note">Worldwide all-time dirt rankings. Enter a miner name to join the board!</div>';
+    h+='<div style="display:flex;gap:6px;padding:0 4px 4px">'+
+      '<input id="lb-name" class="lb-input" maxlength="14" placeholder="Your miner name" value="'+esc(META.playerName||"")+'">'+
+      '<button class="ybtn small" data-act="lb-save">Save</button></div>';
+    h+='<div id="lb-list" style="display:flex;flex-direction:column;gap:5px">'+lbRowsHtml()+'</div>';
+  }
   else if(screen==="achievements"){
     pTitle.textContent="ACHIEVEMENTS";
     h+='<div class="center-note">Tap any achievement for details. Completing achievements rewards crates!</div>';
@@ -814,7 +887,9 @@ function renderScreen(){
   else if(screen==="hints"){
     pTitle.textContent="HINTS";
     h='<div class="hint-block">'+
-      '<h4>Basics</h4>Tap the screen to dig dirt blocks. It takes '+tapsNeeded()+' tap'+(tapsNeeded()>1?"s":"")+' to dig one block. Spend dirt on upgrades, collect and equip items, complete contracts and achievements, and prestige to reset with a bonus.'+
+      '<h4>Basics</h4>Tap the screen to dig dirt blocks. It takes '+tapsNeeded()+' tap'+(tapsNeeded()>1?"s":"")+' to dig one block. Mine all the way to the bottom of the screen to clear the layer for a big dirt bonus, then a fresh layer appears. Spend dirt on upgrades, collect and equip items, complete contracts and achievements, and prestige to reset with a bonus.'+
+      '<h4>Auto-Miner</h4>Build the Auto-Miner in UPGRADES to dig automatically. Upgrade it and its Motor to dig more blocks, faster and faster.'+
+      '<h4>Leaderboard</h4>Open MENU, Leaderboard and set your miner name to compete worldwide on all-time dirt!'+
       '<h4>Special Blocks</h4>Coal gives 2x the value of a dirt block, Copper 4x, Silver 6x, Gold 11x and Diamonds 100x. Gnome blocks hire a gnome worker who brings you dirt equal to 5 random blocks.'+
       '<h4>Upgrades</h4>Open the UPGRADES tab on the right of the screen. Upgrades are colour coded: green means you can afford them, red means you cannot. Percentage upgrades are expensive but shine later in the game.'+
       '<h4>Quarry</h4>Build and upgrade 6 different mines that collect dirt automatically over time.'+
@@ -864,7 +939,8 @@ pTabs.addEventListener("click",e=>{
 let wipeArmed=false,lastCrateReveal="";
 function doAction(act){
   if(act==="up-tap"&&spend(tapCost())){S.tapLvl++;countUpgrade();upgradeBump("main");toast("Tapping upgraded!");}
-  else if(act==="up-dig"&&spend(digCost())){S.digLvl++;countUpgrade();upgradeBump("main");toast("Digger upgraded!");}
+  else if(act==="up-dig"&&spend(digCost())){S.digLvl++;countUpgrade();upgradeBump("main");toast(S.digLvl===1?"Auto-Miner built!":"Auto-Miner upgraded!");}
+  else if(act==="up-motor"&&spend(motorCost())){S.motorLvl++;countUpgrade();upgradeBump("main");toast("Miner Motor upgraded!");}
   else if(act==="up-ref"&&spend(refCost())){S.refLvl++;countUpgrade();upgradeBump("main");toast("Refinery upgraded!");}
   else if(act==="up-fore"&&spend(foreCost())){S.foreLvl++;countUpgrade();upgradeBump("main");toast("Foreman upgraded! +1% Special Blocks");}
   else if(act==="up-gnome"&&spend(gnomeCost())){S.gnomeLvl++;countUpgrade();upgradeBump("main");toast("Gnomes upgraded!");}
@@ -914,6 +990,14 @@ function doAction(act){
     if(S.rerolls<1)return;S.rerolls--;
     S.contracts[i]=newContract();toast("Contract Re-rolled! "+S.rerolls+" re-rolls remaining");
   }
+  else if(act==="lb-save"){
+    const inp=document.getElementById("lb-name");
+    const name=(inp?inp.value:"").replace(/[^\w \-]/g,"").trim().slice(0,14);
+    if(!name){toast("Enter a name first!");return;}
+    META.playerName=name;saveMeta();
+    toast("Name saved! Submitting your score...");
+    lbRefresh();
+  }
   else if(act==="prestige"){doPrestige();return;}
   else if(act==="erase"){
     if(!wipeArmed){wipeArmed=true;setTimeout(()=>{wipeArmed=false;if(screen==="settings")renderScreen();},3000);renderScreen();return;}
@@ -945,6 +1029,7 @@ function checkWorld(){
   const w=WORLDS[S.world];
   if(S.lifetime>=w.goal&&S.world<WORLDS.length-1){
     S.world++;
+    S.row=0;S.col=0;S.dir=1;
     initField();
     const nw=WORLDS[S.world];
     toast("BREAKING NEWS: "+nw.headline);
@@ -956,14 +1041,12 @@ function checkWorld(){
 const dirtCountEl=document.getElementById("dirt-count");
 const progFill=document.getElementById("prog-fill");
 const progText=document.getElementById("prog-text");
-const multLine=document.getElementById("mult-line");
 function renderHud(){
   dirtCountEl.textContent=fmt(S.dirt)+" Dirt";
   const w=WORLDS[S.world];
   const pct=w.goal===Infinity?100:Math.min(100,S.lifetime/w.goal*100);
   progFill.style.width=pct+"%";
   progText.textContent=w.goal===Infinity?w.name:fmt(S.lifetime)+" / "+fmt(w.goal);
-  multLine.textContent="Base dirt "+(1+META.prestigeBonus).toFixed(1)+"   Multiplier x"+(1+S.pct.all*0.02).toFixed(2);
 }
 
 /* =================== RENDERING (pixel scene) =================== */
@@ -984,50 +1067,66 @@ function seededNoise(seed,i){let x=Math.sin(seed*12.9898+i*78.233)*43758.5453;re
 function drawBlock(x,y,b,w){
   if(b.dug){ /* dug-out hollow */
     px(x,y,BS,BS,"rgba(20,12,6,0.9)");
-    for(let i=0;i<3;i++){
+    for(let i=0;i<2;i++){
       const n=seededNoise(b.seed,i);
-      px(x+4+n*22,y+6+seededNoise(b.seed,i+9)*20,3,3,"#3A2A1A");
+      px(x+2+n*14,y+3+seededNoise(b.seed,i+9)*13,2,2,"#3A2A1A");
     }
     return;
   }
   const A=w.dirtA,B=w.dirtB;
-  /* mottled dirt: 4x4 subcells */
+  /* mottled dirt: 4x4 subcells, chunky like the original */
   for(let sy=0;sy<4;sy++)for(let sx=0;sx<4;sx++){
     const n=seededNoise(b.seed,sx+sy*4);
     ctx.fillStyle=hex(lerpC(A,B,n));
-    ctx.fillRect(x+sx*8,y+sy*8,8,8);
+    ctx.fillRect(x+sx*5,y+sy*5,5,5);
   }
-  px(x,y,BS,2,"rgba(0,0,0,0.25)");px(x,y,2,BS,"rgba(0,0,0,0.15)");
+  for(let i=0;i<3;i++){
+    const n1=seededNoise(b.seed,20+i),n2=seededNoise(b.seed,30+i);
+    ctx.fillStyle=n1>0.5?"rgba(0,0,0,0.22)":"rgba(255,255,255,0.10)";
+    ctx.fillRect(x+2+(n1*15|0),y+2+(n2*15|0),2,2);
+  }
+  /* block seams */
+  px(x,y,BS,1,"rgba(255,255,255,0.12)");
+  px(x,y,1,BS,"rgba(0,0,0,0.18)");
+  px(x,y+BS-1,BS,1,"rgba(0,0,0,0.30)");
+  px(x+BS-1,y,1,BS,"rgba(0,0,0,0.25)");
   /* special sprite */
   const t=b.type;
   if(t!=="dirt"){
     if(SPECIALS[t]){
       const c=SPECIALS[t].color;
-      px(x+8,y+12,6,6,c);px(x+18,y+8,5,5,c);px(x+14,y+20,7,5,c);px(x+22,y+18,4,4,c);
-      if(t==="diamond"){px(x+13,y+13,4,4,"#B9F5FC");}
+      px(x+4,y+5,4,4,c);px(x+11,y+3,3,3,c);px(x+8,y+12,4,3,c);px(x+14,y+10,3,3,c);px(x+3,y+14,3,3,c);
+      if(t==="diamond")px(x+9,y+7,2,2,"#B9F5FC");
     }else if(t==="gnome"){
-      px(x+12,y+8,8,7,"#E03A3A");px(x+11,y+15,10,6,"#F2C9A0");px(x+11,y+21,10,6,"#3A6EC2");
+      px(x+7,y+3,6,4,"#E03A3A");px(x+6,y+7,8,5,"#F2C9A0");px(x+6,y+12,8,5,"#3A6EC2");
     }else if(t==="crate"){
-      px(x+7,y+9,18,16,"#8A5A2B");px(x+7,y+9,18,3,"#B98A4B");px(x+7,y+16,18,2,"#5C3A18");px(x+14,y+9,3,16,"#5C3A18");
+      px(x+3,y+4,14,12,"#8A5A2B");px(x+3,y+4,14,2,"#B98A4B");px(x+3,y+9,14,2,"#5C3A18");px(x+9,y+4,2,12,"#5C3A18");
     }else if(t==="energy"){
-      px(x+14,y+7,5,9,"#C77DFF");px(x+11,y+14,5,5,"#C77DFF");px(x+13,y+18,5,9,"#E8B9FF");
+      px(x+9,y+3,4,6,"#C77DFF");px(x+7,y+8,4,4,"#C77DFF");px(x+8,y+11,4,6,"#E8B9FF");
     }
   }
 }
 function drawGuy(x,y,frame){
-  /* 16x24 pixel miner, hard hat */
-  px(x+3,y+2,10,4,"#F2C230");           /* hat */
-  px(x+2,y+5,12,2,"#C9A616");
-  px(x+4,y+7,8,6,"#F2C9A0");            /* face */
-  px(x+5,y+9,2,2,"#2A1B0E");px(x+9,y+9,2,2,"#2A1B0E");
-  px(x+3,y+13,10,7,"#3A6EC2");          /* shirt */
-  px(x+3,y+20,4,4,"#5C3A18");px(x+9,y+20,4,4,"#5C3A18"); /* legs */
+  /* 16x24 cute pixel miner: shiny hard hat, big eyes, rosy cheeks, overalls */
+  px(x+3,y,10,2,"#FFE469");             /* hat shine */
+  px(x+2,y+1,12,4,"#F2C230");           /* hard hat */
+  px(x+1,y+5,14,2,"#C9A616");           /* brim */
+  px(x+4,y+7,8,7,"#F6D7B0");            /* face */
+  px(x+5,y+9,2,3,"#FFFFFF");px(x+9,y+9,2,3,"#FFFFFF");   /* eye whites */
+  px(x+6,y+10,1,2,"#20303C");px(x+10,y+10,1,2,"#20303C");/* pupils */
+  px(x+4,y+12,2,1,"#F0A088");px(x+10,y+12,2,1,"#F0A088");/* rosy cheeks */
+  px(x+7,y+13,2,1,"#A85A3A");           /* smile */
+  px(x+3,y+14,10,6,"#3A6EC2");          /* overalls */
+  px(x+5,y+14,1,3,"#F2D33C");px(x+10,y+14,1,3,"#F2D33C");/* straps */
+  px(x+6,y+16,4,3,"#2A54A0");           /* pocket */
+  px(x+4,y+20,3,3,"#5C3A18");px(x+9,y+20,3,3,"#5C3A18"); /* legs */
+  px(x+3,y+23,4,1,"#2A1B0E");px(x+9,y+23,4,1,"#2A1B0E"); /* boots */
   /* arm + shovel */
   if(frame){
-    px(x+12,y+13,6,2,"#F2C9A0");
-    px(x+17,y+11,2,10,"#8A5A2B");px(x+15,y+20,6,4,"#B9C4CC");
+    px(x+12,y+14,5,2,"#F6D7B0");
+    px(x+16,y+11,2,10,"#8A5A2B");px(x+14,y+20,6,4,"#B9C4CC");
   }else{
-    px(x+12,y+15,4,2,"#F2C9A0");
+    px(x+12,y+16,4,2,"#F6D7B0");
     px(x+15,y+9,2,10,"#8A5A2B");px(x+13,y+5,6,4,"#B9C4CC");
   }
 }
@@ -1090,7 +1189,7 @@ function drawSurface(w,nightBlend){
   /* boost indicator */
   if(S.boostUntil>now()){
     ctx.fillStyle="#7CFC5A";ctx.font="bold 8px monospace";
-    ctx.fillText("BOOST "+Math.ceil((S.boostUntil-now())/1000)+"s",196,10);
+    ctx.fillText("BOOST "+Math.ceil((S.boostUntil-now())/1000)+"s",258,10);
   }
   /* gnomes walking */
   for(const g2 of gnomes){
@@ -1102,40 +1201,40 @@ function draw(){
   const sb=skyBlend();
   ctx.clearRect(0,0,LW,LH);
   drawSurface(w,sb.n);
-  /* stone borders + block field */
-  for(let r=0;r<VROWS+2;r++){
-    const y=SURFACE+(r-2)*BS+BS*2; /* rows[0] is two above dig line, draw from surface down */
-  }
-  /* draw rows: rows[0..1] are above dig front (older, mostly dug), rows[2] is dig row */
+  /* full block field, surface to bottom of screen */
   for(let r=0;r<rows.length;r++){
-    const y=SURFACE+r*BS - BS*0; /* row 0 right under surface */
+    const y=SURFACE+r*BS;
     if(y>=LH)break;
-    for(let c=0;c<COLS;c++){
-      drawBlock(c*BS,y,rows[r][c],w);
-    }
+    for(let c=0;c<COLS;c++)drawBlock(c*BS,y,rows[r][c],w);
   }
-  /* darken deeper rows slightly */
-  for(let r=4;r<rows.length;r++){
+  /* subtle depth shading near the bottom */
+  for(let r=12;r<rows.length;r++){
     const y=SURFACE+r*BS;if(y>=LH)break;
-    ctx.fillStyle="rgba(0,0,0,"+Math.min(0.35,(r-3)*0.06)+")";
+    ctx.fillStyle="rgba(0,0,0,"+Math.min(0.25,(r-11)*0.03)+")";
     ctx.fillRect(0,y,LW,BS);
   }
-  /* the little digger guy stands on the dig row */
-  const guyY=SURFACE+2*BS-24+4;
-  const guyX=S.col*BS+(S.dir>0?-4:12);
+  /* the miner stands on top of the block he is digging */
+  const guyY=SURFACE+S.row*BS-24;
+  const guyX=Math.max(0,Math.min(LW-20,S.col*BS+(S.dir>0?-2:6)));
   drawGuy(guyX,guyY,guyAnim>0?1:0);
   /* crack overlay on current block */
   const b=currentBlock();
   if(b&&S.tapsOnBlock>0){
-    const x=S.col*BS,y=SURFACE+2*BS;
+    const x=S.col*BS,y=SURFACE+S.row*BS;
     ctx.strokeStyle="rgba(0,0,0,0.7)";ctx.lineWidth=1;
     ctx.beginPath();
-    ctx.moveTo(x+6,y+6);ctx.lineTo(x+16,y+16);
-    if(S.tapsOnBlock>1){ctx.moveTo(x+24,y+8);ctx.lineTo(x+14,y+20);ctx.moveTo(x+10,y+26);ctx.lineTo(x+20,y+18);}
+    ctx.moveTo(x+4,y+4);ctx.lineTo(x+11,y+11);
+    if(S.tapsOnBlock>1){ctx.moveTo(x+15,y+5);ctx.lineTo(x+9,y+13);ctx.moveTo(x+6,y+16);ctx.lineTo(x+13,y+11);}
     ctx.stroke();
   }
-  /* laser flash */
+  /* tap lord glow */
   if(S.evUntil.taplord>now()){ctx.fillStyle="rgba(242,211,60,0.06)";ctx.fillRect(0,0,LW,LH);}
+  /* layer-clear flash */
+  if(flashT>0){
+    ctx.fillStyle="rgba(255,250,210,"+(flashT*0.55).toFixed(3)+")";
+    ctx.fillRect(0,0,LW,LH);
+    flashT=Math.max(0,flashT-0.04);
+  }
 }
 
 /* =================== GAME LOOP =================== */
