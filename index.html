@@ -871,25 +871,36 @@ function renderScreen(){
   else if(screen==="crates"){
     pTitle.textContent="ITEM CRATES";
     if(!crateAnim){
-      h+='<div class="center-note">Crates are rare treasures from mining, contracts and achievements. Each one holds an item plus a bonus!</div>';
+      h+='<div class="center-note">Crates are rare treasures from mining, contracts and achievements. Each one holds an item plus a bonus. Tap the crate!</div>';
       h+='<div id="crate-stage">'+
-        (S.crateCount>0?'<img class="gift" src="'+ICONS.gift+'" data-act="open-crate" alt="">':'')+
-        '<button class="ybtn" data-act="open-crate"'+(S.crateCount<1?" disabled":"")+'>Open Crate ('+S.crateCount+')</button></div>';
-    }else if(crateAnim.phase==="box"){
-      h+='<div id="crate-stage"><div class="center-note" style="font-size:13px;color:var(--yellow)">Tap the crate to open it!</div>'+
-        '<img class="gift" src="'+ICONS.gift+'" data-act="crate-tap" alt=""></div>';
+        (S.crateCount>0?'<img class="gift" src="'+ICONS.gift+'" data-act="crate-tap" alt="">'
+          :'<div class="center-note">No crates right now. Go dig some up!</div>')+
+        '<div class="center-note" style="color:var(--yellow)">Crates: '+S.crateCount+'</div></div>';
     }else if(crateAnim.phase==="burst"){
-      const c=RARITY_COLORS[crateAnim.item.r];
+      const c=crateAnim.kind==="item"?RARITY_COLORS[crateAnim.item.r]:crateAnim.kind==="dirt"?"#F2D33C":"#8A8578";
       h+='<div id="crate-stage"><div class="burst-wrap">'+
         '<div class="burst-halo" style="background:radial-gradient(circle,'+c+' 0%,'+c+'55 45%,transparent 70%)"></div>'+
         '<img class="gift burst" src="'+ICONS.gift+'" alt=""></div></div>';
     }else{
-      const it=crateAnim.item,c=RARITY_COLORS[it.r];
-      h+='<div id="crate-stage"><div class="reveal-card" style="border-color:'+c+';box-shadow:0 0 24px '+c+'88">'+
-        '<div class="'+RARITY[it.r].cls+'" style="font-size:15px">'+itemName(it)+'</div>'+
-        '<div style="font-size:11px;color:#9FD9E2;margin-top:6px">'+SLOTS[it.slot].desc(SLOTS[it.slot].vals[it.r])+'</div>'+
-        '<div style="font-size:11px;color:var(--lime);margin-top:9px">Bonus: '+crateAnim.bonusTxt+'</div></div>'+
-        '<button class="ybtn" data-act="crate-done">'+(S.crateCount>0?"Open Another ("+S.crateCount+")":"Nice!")+'</button></div>';
+      let card;
+      if(crateAnim.kind==="item"){
+        const it=crateAnim.item,c=RARITY_COLORS[it.r];
+        card='<div class="reveal-card" data-act="crate-tap" style="cursor:pointer;border-color:'+c+';box-shadow:0 0 24px '+c+'88">'+
+          '<div class="'+RARITY[it.r].cls+'" style="font-size:15px">'+itemName(it)+'</div>'+
+          '<div style="font-size:11px;color:#9FD9E2;margin-top:6px">'+SLOTS[it.slot].desc(SLOTS[it.slot].vals[it.r])+'</div>'+
+          '<div style="font-size:11px;color:var(--lime);margin-top:9px">Bonus: '+crateAnim.bonusTxt+'</div></div>';
+      }else if(crateAnim.kind==="dirt"){
+        card='<div class="reveal-card" data-act="crate-tap" style="cursor:pointer;border-color:#F2D33C;box-shadow:0 0 24px #F2D33C88">'+
+          '<div style="font-size:17px;color:var(--yellow)">'+crateAnim.dirtTxt+'</div>'+
+          '<div style="font-size:11px;color:#9FD9E2;margin-top:6px">A crate full of pure, honest dirt.</div></div>';
+      }else{
+        card='<div class="reveal-card" data-act="crate-tap" style="cursor:pointer;border-color:#8A8578;box-shadow:0 0 14px #8A857866">'+
+          '<div style="font-size:15px;color:#C8C2B0">Empty...</div>'+
+          '<div style="font-size:11px;color:#9FD9E2;margin-top:6px">'+crateAnim.note+'</div></div>';
+      }
+      h+='<div id="crate-stage">'+card+
+        (S.crateCount>0?'<div class="center-note" style="color:var(--yellow)">Tap to open another ('+S.crateCount+')</div>'
+          :'<div class="center-note">That was your last crate!</div>')+'</div>';
     }
   }
   else if(screen==="items"){
@@ -1074,17 +1085,25 @@ function doAction(act){
   else if(act.startsWith("res-")){const id=act.slice(4);const r=RESEARCH.find(x=>x.id===id);
     if(r&&!hasR(id)&&spend(Math.round(r.cost*priceMod()))){S.research[id]=true;countUpgrade();
       toast(r.name.split(" ")[0]+" research complete!");}}
-  else if(act==="open-crate"){
-    if(S.crateCount<1){toast("Not enough crates!");return;}
-    if(crateAnim)return;
-    S.crateCount--;
-    crateAnim={phase:"box",item:rollItem(),bonusTxt:null};
-    checkAch();
-  }
   else if(act==="crate-tap"){
-    if(!crateAnim||crateAnim.phase!=="box")return;
-    crateAnim.phase="burst";
-    crateAnim.bonusTxt=rollCrateBonus();
+    if(crateAnim&&crateAnim.phase==="burst")return; /* let the burst play out */
+    if(S.crateCount<1){crateAnim=null;toast("Not enough crates!");checkAch();renderHud();renderScreen();return;}
+    S.crateCount--;
+    const roll=Math.random();
+    if(roll<0.60){
+      crateAnim={phase:"burst",kind:"item",item:rollItem(),bonusTxt:rollCrateBonus()};
+    }else if(roll<0.85){
+      const d=Math.round((blockValue()*150+quarryTotal()*120+100)*(1+Math.random()));
+      earnDirt(d);
+      crateAnim={phase:"burst",kind:"dirt",dirtTxt:"+"+fmt(d)+" DIRT!"};
+    }else{
+      const LINES=["Absolutely nothing. The gnomes got here first.",
+        "Just dust and disappointment.",
+        "Nothing inside. Classic.",
+        "A single dust bunny hops away.",
+        "Someone already looted this one. Suspicious."];
+      crateAnim={phase:"burst",kind:"empty",note:LINES[Math.floor(Math.random()*LINES.length)]};
+    }
     setTimeout(()=>{
       if(crateAnim&&crateAnim.phase==="burst"){
         crateAnim.phase="reveal";
@@ -1092,7 +1111,6 @@ function doAction(act){
       }
     },950);
   }
-  else if(act==="crate-done"){crateAnim=null;}
   else if(act==="sellmode"){sellMode=!sellMode;sellSel=new Set();}
   else if(act==="sell-sel"){
     if(!sellSel.size){toast("No items selected!");return;}
