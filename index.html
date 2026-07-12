@@ -79,8 +79,12 @@
     letter-spacing:1px;}
   #panel-tabs{display:flex;gap:4px;padding:0 8px;flex-wrap:wrap;}
   #panel-tabs button{flex:1;background:#0E434C;color:#9FD9E2;border:2px solid #0A343B;border-bottom:none;
-    font-family:inherit;font-weight:bold;font-size:11.5px;padding:8px 6px;cursor:pointer;}
+    font-family:inherit;font-weight:bold;font-size:11.5px;padding:8px 6px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:4px;}
   #panel-tabs button.on{background:var(--yellow);color:#4A3A05;}
+  .pix-ic{width:26px;height:26px;image-rendering:pixelated;flex:none;pointer-events:none;}
+  #panel-tabs button .pix-ic{width:24px;height:24px;}
+  .icon-btn{display:flex;align-items:center;gap:12px;justify-content:flex-start;padding-left:22px;}
   #panel-body{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;
     border-top:3px solid #0A343B;}
   .btn-grid{display:flex;flex-direction:column;gap:10px;padding:18px 22px;}
@@ -462,6 +466,7 @@ function layerCleared(){
   earnDirt(bonus);
   layerFx={k:0,depth:S.depth,bonus,oldRows:rows};
   spawnClearParts();
+  toast("+"+fmt(bonus)+" dirt layer bonus!");
   S.row=0;S.col=0;S.dir=1;
   initField();
 }
@@ -642,6 +647,34 @@ function doPrestige(){
   closePanel();renderHud();
 }
 
+/* =================== PIXEL ICONS (drawn to data-URLs at startup) =================== */
+const ICONS=(()=>{
+  const out={};
+  const defs={
+    shovel:p=>{p(5,0,6,2,"#8A5A2B");p(7,2,2,8,"#8A5A2B");p(5,9,6,5,"#B9C4CC");p(6,14,4,2,"#8FA0AA");},
+    digger:p=>{p(4,4,5,3,"#F2C230");p(5,5,3,2,"#9FD9E2");p(3,7,9,4,"#F2C230");p(9,4,5,2,"#C9A616");p(13,5,3,5,"#8A8A8A");p(3,11,9,3,"#4A4A4A");p(4,12,2,1,"#222222");p(8,12,2,1,"#222222");},
+    pile:p=>{p(6,6,4,2,"#8A5A2B");p(5,8,6,2,"#A06B3A");p(3,10,10,4,"#8A5A2B");p(6,11,2,2,"#A06B3A");p(12,1,2,6,"#7CFC5A");p(10,3,6,2,"#7CFC5A");},
+    quarry:p=>{p(2,5,12,10,"#6E6E6E");p(3,4,10,2,"#8A5A2B");p(4,7,2,8,"#8A5A2B");p(10,7,2,8,"#8A5A2B");p(6,8,4,7,"#1A1A1A");},
+    flask:p=>{p(6,1,4,2,"#C8E8F0");p(7,3,2,4,"#C8E8F0");p(5,7,6,2,"#7CE0F0");p(4,9,8,5,"#42C8E0");p(6,10,2,2,"#B9F5FC");},
+    crate:p=>{p(2,3,12,11,"#8A5A2B");p(2,3,12,2,"#B98A4B");p(7,3,2,11,"#5C3A18");p(2,8,12,2,"#5C3A18");},
+    helmet:p=>{p(5,3,6,2,"#F2C230");p(4,5,8,4,"#F2C230");p(2,9,12,2,"#C9A616");p(7,4,2,2,"#FFF8C8");},
+    trophy:p=>{p(4,2,8,5,"#F2D33C");p(2,2,2,4,"#C9A616");p(12,2,2,4,"#C9A616");p(7,7,2,3,"#F2D33C");p(5,10,6,2,"#C9A616");p(4,12,8,2,"#8A6A16");},
+    paper:p=>{p(4,1,8,14,"#F2EFE4");p(5,3,6,1,"#8A8578");p(5,5,6,1,"#8A8578");p(5,7,6,1,"#8A8578");p(5,9,4,1,"#8A8578");p(10,1,2,2,"#C8C2B0");},
+    star:p=>{p(7,2,2,3,"#F2D33C");p(3,5,10,3,"#F2D33C");p(5,8,6,2,"#F2D33C");p(4,10,3,3,"#F2D33C");p(9,10,3,3,"#F2D33C");p(7,9,2,2,"#C9A616");},
+    chart:p=>{p(2,2,1,12,"#EAF6F8");p(2,13,12,1,"#EAF6F8");p(4,9,2,4,"#7CFC5A");p(7,6,2,7,"#F2D33C");p(10,3,2,10,"#5FA8FF");},
+    gear:p=>{p(7,2,2,3,"#B9C4CC");p(7,11,2,3,"#B9C4CC");p(2,7,3,2,"#B9C4CC");p(11,7,3,2,"#B9C4CC");p(4,4,8,8,"#B9C4CC");p(7,7,2,2,"#3A4048");},
+    block:p=>{p(1,1,14,14,"#8A5A2B");p(3,3,4,4,"#A06B3A");p(9,4,4,3,"#7A4E24");p(4,9,3,4,"#A06B3A");p(9,9,4,4,"#7A4E24");p(1,1,14,1,"#B98A4B");},
+  };
+  for(const k in defs){
+    const c=document.createElement("canvas");c.width=16;c.height=16;
+    const g=c.getContext("2d");
+    defs[k]((x,y,wd,ht,col)=>{g.fillStyle=col;g.fillRect(x,y,wd,ht);});
+    out[k]=c.toDataURL();
+  }
+  return out;
+})();
+function ic(name){return '<img class="pix-ic" src="'+ICONS[name]+'" alt="">';}
+
 /* =================== LEADERBOARD =================== */
 const LB_API="https://dirt-inc-leaderboard.netlify.app/api/scores";
 let lbState="idle",lbData=[];
@@ -713,28 +746,28 @@ function renderScreen(){
   if(screen==="menu"){
     pTitle.textContent="MENU";
     h='<div class="btn-grid">'+
-      '<button class="ybtn" data-nav="contracts">Contracts</button>'+
-      '<button class="ybtn" data-nav="leaderboard">Leaderboard</button>'+
-      '<button class="ybtn" data-nav="achievements">Achievements</button>'+
-      '<button class="ybtn" data-nav="stats">Statistics</button>'+
-      '<button class="ybtn" data-nav="settings">Settings</button></div>';
+      '<button class="ybtn icon-btn" data-nav="contracts">'+ic("paper")+'Contracts</button>'+
+      '<button class="ybtn icon-btn" data-nav="leaderboard">'+ic("trophy")+'Leaderboard</button>'+
+      '<button class="ybtn icon-btn" data-nav="achievements">'+ic("star")+'Achievements</button>'+
+      '<button class="ybtn icon-btn" data-nav="stats">'+ic("chart")+'Statistics</button>'+
+      '<button class="ybtn icon-btn" data-nav="settings">'+ic("gear")+'Settings</button></div>';
   }
   else if(screen==="upgmenu"){
     pTitle.textContent="UPGRADES";
     h='<div class="btn-grid">'+
-      '<button class="ybtn" data-nav="upgrades">Upgrades</button>'+
-      '<button class="ybtn" data-nav="quarry">Quarry</button>'+
-      '<button class="ybtn" data-nav="research">Research</button>'+
-      '<button class="ybtn" data-nav="crates">Crates ('+S.crateCount+')</button>'+
-      '<button class="ybtn" data-nav="items">Items</button>'+
-      '<button class="ybtn" data-close="1">Main Screen</button></div>';
+      '<button class="ybtn icon-btn" data-nav="upgrades">'+ic("shovel")+'Upgrades</button>'+
+      '<button class="ybtn icon-btn" data-nav="quarry">'+ic("quarry")+'Quarry</button>'+
+      '<button class="ybtn icon-btn" data-nav="research">'+ic("flask")+'Research</button>'+
+      '<button class="ybtn icon-btn" data-nav="crates">'+ic("crate")+'Crates ('+S.crateCount+')</button>'+
+      '<button class="ybtn icon-btn" data-nav="items">'+ic("helmet")+'Items</button>'+
+      '<button class="ybtn icon-btn" data-close="1">'+ic("block")+'Main Screen</button></div>';
   }
   else if(screen==="upgrades"){
     pTitle.textContent="UPGRADES";
     const tab=screenArg||"main";
-    pTabs.innerHTML='<button data-utab="main" class="'+(tab==="main"?"on":"")+'">Main</button>'+
-      '<button data-utab="miner" class="'+(tab==="miner"?"on":"")+'">Auto-Miner</button>'+
-      '<button data-utab="pct" class="'+(tab==="pct"?"on":"")+'">Percentage</button>';
+    pTabs.innerHTML='<button data-utab="main" class="'+(tab==="main"?"on":"")+'">'+ic("shovel")+'Main</button>'+
+      '<button data-utab="miner" class="'+(tab==="miner"?"on":"")+'">'+ic("digger")+'Auto-Miner</button>'+
+      '<button data-utab="pct" class="'+(tab==="pct"?"on":"")+'">'+ic("pile")+'Percentage</button>';
     if(tab==="main"){
       /* Tap */
       if(S.tapLvl<2){
@@ -1158,6 +1191,8 @@ function drawBlock(x,y,b,w){
   }
 }
 function drawGuy(x,y,frame){
+  /* the player named "fish" gets an actual fish miner */
+  if((META.playerName||"").toLowerCase()==="fish"){drawFish(x,y,frame);return;}
   /* 16x24 cute pixel miner: shiny hard hat, big eyes, rosy cheeks, overalls */
   px(x+3,y,10,2,"#FFE469");             /* hat shine */
   px(x+2,y+1,12,4,"#F2C230");           /* hard hat */
@@ -1178,6 +1213,25 @@ function drawGuy(x,y,frame){
     px(x+16,y+11,2,10,"#8A5A2B");px(x+14,y+20,6,4,"#B9C4CC");
   }else{
     px(x+12,y+16,4,2,"#F6D7B0");
+    px(x+15,y+9,2,10,"#8A5A2B");px(x+13,y+5,6,4,"#B9C4CC");
+  }
+}
+function drawFish(x,y,frame){
+  /* 16x24 cute fish miner: blue fish, tiny hard hat, still digs with a shovel */
+  px(x+1,y+11,3,2,"#2A7EC0");px(x,y+9,2,2,"#2A7EC0");px(x,y+13,2,2,"#2A7EC0"); /* tail */
+  px(x+4,y+9,9,8,"#3AA8E8");            /* body */
+  px(x+5,y+8,7,1,"#8FD4F5");            /* top shine */
+  px(x+13,y+11,2,4,"#3AA8E8");          /* nose */
+  px(x+10,y+10,2,2,"#FFFFFF");px(x+11,y+11,1,1,"#20303C"); /* eye */
+  px(x+12,y+14,2,1,"#1E5E90");          /* mouth */
+  px(x+7,y+11,3,3,"#2A7EC0");           /* side fin */
+  px(x+6,y+17,2,3,"#2A7EC0");px(x+10,y+17,2,3,"#2A7EC0");  /* lower fins */
+  px(x+6,y+5,7,3,"#F2C230");px(x+5,y+8,3,1,"#C9A616");     /* tiny hard hat */
+  px(x+14,y+4,2,2,"rgba(255,255,255,0.5)");px(x+12,y+1,2,2,"rgba(255,255,255,0.35)"); /* bubbles */
+  /* shovel, same frames as the miner */
+  if(frame){
+    px(x+16,y+11,2,10,"#8A5A2B");px(x+14,y+20,6,4,"#B9C4CC");
+  }else{
     px(x+15,y+9,2,10,"#8A5A2B");px(x+13,y+5,6,4,"#B9C4CC");
   }
 }
@@ -1291,18 +1345,6 @@ function draw(){
       ctx.fillStyle=p.c;ctx.fillRect(p.x|0,p.y|0,p.s,p.s);
     }
     ctx.globalAlpha=1;
-  }
-  /* layer-clear banner */
-  if(layerFx){
-    const k=layerFx.k,a=k<0.12?k/0.12:(k>0.8?Math.max(0,(1-k)/0.2):1);
-    ctx.globalAlpha=a;ctx.textAlign="center";
-    ctx.font="bold 22px monospace";
-    ctx.fillStyle="#000";ctx.fillText("LAYER "+layerFx.depth+" CLEARED!",LW/2+2,202);
-    ctx.fillStyle="#F2D33C";ctx.fillText("LAYER "+layerFx.depth+" CLEARED!",LW/2,200);
-    ctx.font="bold 14px monospace";
-    ctx.fillStyle="#000";ctx.fillText("+"+fmt(layerFx.bonus)+" DIRT",LW/2+1,227);
-    ctx.fillStyle="#7CFC5A";ctx.fillText("+"+fmt(layerFx.bonus)+" DIRT",LW/2,226);
-    ctx.globalAlpha=1;ctx.textAlign="left";
   }
   /* tap lord glow */
   if(S.evUntil.taplord>now()){ctx.fillStyle="rgba(242,211,60,0.06)";ctx.fillRect(0,0,LW,LH);}
