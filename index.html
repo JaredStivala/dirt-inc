@@ -699,6 +699,58 @@ const ICONS=(()=>{
 })();
 function ic(name){return '<img class="pix-ic" src="'+ICONS[name]+'" alt="">';}
 
+/* =================== DEVICE SYNC =================== */
+const SYNC_API="https://dirt-inc-leaderboard.netlify.app/api/save";
+function genSyncCode(){
+  const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789";let c="";
+  for(let i=0;i<8;i++)c+=A[Math.floor(Math.random()*A.length)];
+  return c;
+}
+function syncPayload(){return JSON.stringify({s:S,meta:META,ts:now()});}
+function syncPush(){
+  if(!META.syncCode)return Promise.resolve();
+  return fetch(SYNC_API+"?code="+META.syncCode,{method:"POST",body:syncPayload()}).catch(()=>{});
+}
+async function syncPull(){
+  if(!META.syncCode)return "none";
+  try{
+    const r=await fetch(SYNC_API+"?code="+META.syncCode+"&t="+now(),{cache:"no-store"});
+    const d=await r.json();
+    if(!d||!d.meta||!d.s)return "empty";
+    /* most total progress wins - immune to device clock differences */
+    if((d.meta.allLifetime||0)>META.allLifetime){adoptCloudSave(d);return "adopted";}
+    return "kept";
+  }catch(e){return "error";}
+}
+function adoptCloudSave(d){
+  const code=META.syncCode;
+  const f=freshRun();
+  S={...f,...d.s,pct:{...f.pct,...d.s.pct},stats:{...f.stats,...d.s.stats,specials:{...f.stats.specials,...(d.s.stats&&d.s.stats.specials||{})}}};
+  if(!Array.isArray(S.quarry)||S.quarry.length!==QUARRY.length)S.quarry=QUARRY.map(()=>0);
+  if(!Array.isArray(S.qTimers)||S.qTimers.length!==QUARRY.length)S.qTimers=QUARRY.map(()=>0);
+  META={...META,...d.meta,syncCode:code};
+  S.baseDirt=1+META.prestigeBonus;
+  S.row=Math.max(0,Math.min(ROWS-1,S.row|0));
+  S.col=Math.max(0,Math.min(COLS-1,S.col|0));
+  initField();
+  for(let r=0;r<S.row;r++)for(const b of rows[r])b.dug=true;
+  if(rows[S.row]){
+    if(S.dir>0){for(let c=0;c<S.col;c++)rows[S.row][c].dug=true;}
+    else{for(let c=COLS-1;c>S.col;c--)rows[S.row][c].dug=true;}
+  }
+  gnomes=[];layerFx=null;parts=[];ensureContracts();
+  document.getElementById("tab-energy").style.display=S.energyTap?"block":"none";
+  save();saveMeta();renderHud();
+  if(panelOpen)renderScreen();
+  toast("Progress synced from your other device!");
+}
+setInterval(()=>{syncPush();},20000);
+addEventListener("visibilitychange",()=>{if(!document.hidden)syncPull();});
+addEventListener("pagehide",()=>{
+  if(META.syncCode&&navigator.sendBeacon)navigator.sendBeacon(SYNC_API+"?code="+META.syncCode,syncPayload());
+});
+setTimeout(()=>{syncPull();},800); /* pull on launch */
+
 /* =================== LEADERBOARD =================== */
 const LB_API="https://dirt-inc-leaderboard.netlify.app/api/scores";
 let lbState="idle",lbData=[];
@@ -1000,6 +1052,19 @@ function renderScreen(){
       '<button class="ybtn" data-nav="prestige">Prestige</button>'+
       '<button class="ybtn" data-nav="hints">Hints</button>'+
       '<button class="ybtn" data-act="erase">'+(wipeArmed?"Tap again to ERASE ALL":"Erase Save Data")+'</button></div>';
+    h+='<div class="center-note" style="color:var(--yellow);font-size:12px;margin-top:6px">DEVICE SYNC</div>';
+    if(META.syncCode){
+      h+='<div style="text-align:center;font-size:24px;color:var(--lime);letter-spacing:4px;padding:4px">'+META.syncCode+'</div>'+
+        '<div class="center-note">Enter this code on your other device (Settings, Link) and your whole game stays in sync. Keep it secret!</div>'+
+        '<div style="text-align:center"><button class="ybtn small" data-act="sync-unlink">Unlink This Device</button></div>';
+    }else{
+      h+='<div class="center-note">Play the same save on your phone and computer!</div>'+
+        '<div style="text-align:center"><button class="ybtn" data-act="sync-create">Create Sync Code</button></div>'+
+        '<div class="center-note">or link this device to an existing code:</div>'+
+        '<div style="display:flex;gap:6px;padding:0 12px">'+
+        '<input id="sync-code" class="lb-input" maxlength="12" placeholder="CODE" autocapitalize="characters">'+
+        '<button class="ybtn small" data-act="sync-link">Link</button></div>';
+    }
   }
   else if(screen==="prestige"){
     pTitle.textContent="PRESTIGE";
@@ -1151,6 +1216,24 @@ function doAction(act){
     toast("Name saved! Submitting your score...");
     lbRefresh();
   }
+  else if(act==="sync-create"){
+    META.syncCode=genSyncCode();saveMeta();
+    syncPush();
+    toast("Sync code created! Enter it on your other device.");
+  }
+  else if(act==="sync-link"){
+    const inp=document.getElementById("sync-code");
+    const code=(inp?inp.value:"").replace(/[^A-Za-z0-9]/g,"").toUpperCase().slice(0,12);
+    if(code.length<6){toast("Codes are at least 6 characters!");return;}
+    META.syncCode=code;saveMeta();
+    toast("Linked! Syncing...");
+    syncPull().then(res=>{
+      if(res==="kept"||res==="empty"){syncPush();toast("This device's progress is now the synced save!");}
+      else if(res==="error"){toast("Could not reach sync server. Will retry.");}
+      if(screen==="settings"&&panelOpen)renderScreen();
+    });
+  }
+  else if(act==="sync-unlink"){META.syncCode=null;saveMeta();toast("Sync disabled on this device.");}
   else if(act==="prestige"){doPrestige();return;}
   else if(act==="erase"){
     if(!wipeArmed){wipeArmed=true;setTimeout(()=>{wipeArmed=false;if(screen==="settings")renderScreen();},3000);renderScreen();return;}
