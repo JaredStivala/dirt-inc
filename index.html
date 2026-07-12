@@ -231,12 +231,12 @@ const SLOTS={
 const SLOT_KEYS=Object.keys(SLOTS);
 /* quarry: the original's 6 mines */
 const QUARRY=[
-  {key:"dirt",   name:"Dirt Mine",   amt:6,    time:10, cost:5e3},
-  {key:"coal",   name:"Coal Mine",   amt:35,   time:15, cost:6e4},
-  {key:"copper", name:"Copper Mine", amt:170,  time:20, cost:7e5},
-  {key:"silver", name:"Silver Mine", amt:900,  time:25, cost:8e6},
-  {key:"gold",   name:"Gold Mine",   amt:5200, time:30, cost:1e8},
-  {key:"diamond",name:"Diamond Mine",amt:30000,time:40, cost:1.5e9},
+  {key:"dirt",   name:"Dirt Mine",   amt:6,    time:10, cost:1.5e3},
+  {key:"coal",   name:"Coal Mine",   amt:35,   time:15, cost:2e4},
+  {key:"copper", name:"Copper Mine", amt:170,  time:20, cost:2.5e5},
+  {key:"silver", name:"Silver Mine", amt:900,  time:25, cost:3e6},
+  {key:"gold",   name:"Gold Mine",   amt:5200, time:30, cost:4e7},
+  {key:"diamond",name:"Diamond Mine",amt:30000,time:40, cost:6e8},
 ];
 /* research lab: the original's 8 one-time researches */
 const RESEARCH=[
@@ -324,7 +324,7 @@ function itemBonus(slot){
   const it=S.equipped[slot];
   return it?SLOTS[slot].vals[it.r]:0;
 }
-function pctMult(k){return (1+S.pct[k]*0.02)*(1+S.pct.all*0.02);}
+function pctMult(k){return (1+S.pct[k]*0.05)*(1+S.pct.all*0.05);}
 function blockValue(){ /* value of one plain dirt block */
   let v=(S.baseDirt+S.refLvl)*pctMult("ref");
   if(S.boostUntil>now()&&S.generator>=3)v*=2; /* Refinery Boost */
@@ -367,10 +367,10 @@ function quarryMult(){
 }
 function quarryTime(i){return QUARRY[i].time*(1-itemBonus("jacket")/100);}
 /* costs */
-const tapCost=()=>Math.round((S.tapLvl===0?100:S.tapLvl===1?2500:5e4*Math.pow(40,S.tapLvl-2))*priceMod());
+const tapCost=()=>Math.round((S.tapLvl===0?100:S.tapLvl===1?800:2.5e4*Math.pow(15,S.tapLvl-2))*priceMod());
 const digCost=()=>Math.round(400*Math.pow(4,S.digLvl)*priceMod());
 const motorCost=()=>Math.round(1200*Math.pow(1.8,S.motorLvl)*priceMod());
-const refCost=()=>Math.round(1000*Math.pow(7,S.refLvl)*priceMod());
+const refCost=()=>Math.round(350*Math.pow(5,S.refLvl)*priceMod());
 const foreCost=()=>Math.round(2500*Math.pow(5,S.foreLvl)*priceMod());
 const gnomeCost=()=>Math.round(15000*Math.pow(6,S.gnomeLvl)*priceMod());
 const pctCost=k=>{
@@ -462,7 +462,7 @@ if(rows[S.row]){
 function currentBlock(){return rows[S.row]&&rows[S.row][S.col];}
 function layerCleared(){
   S.depth++;
-  const bonus=blockValue()*COLS*ROWS*0.3*(1+S.depth*0.08);
+  const bonus=blockValue()*COLS*ROWS*0.5*(1+S.depth*0.08);
   earnDirt(bonus);
   layerFx={k:0,depth:S.depth,bonus,oldRows:rows};
   spawnClearParts();
@@ -812,11 +812,11 @@ function renderScreen(){
         h+=upgRow("Miner Motor",S.motorLvl,motorCost(),"+8% auto-mine speed per level (now +"+(S.motorLvl*8)+"%)","up-motor",true);
       }
     }else{
-      const P=[["tap","Tap Percent","Increase tapped dirt mined by 2%"],["dig","Digger Percent","Increase digger dirt mined by 2%"],
-        ["quarry","Quarry Percent","Increase quarry dirt mined by 2%"],["ref","Refinery Percent","Increase refinery dirt gained by 2%"],
-        ["all","Overall Percent","All dirt gained increased by 2%"]];
+      const P=[["tap","Tap Percent","Increase tapped dirt mined by 5%"],["dig","Digger Percent","Increase digger dirt mined by 5%"],
+        ["quarry","Quarry Percent","Increase quarry dirt mined by 5%"],["ref","Refinery Percent","Increase refinery dirt gained by 5%"],
+        ["all","Overall Percent","All dirt gained increased by 5%"]];
       for(const [k,nm,d] of P){
-        h+=upgRow(nm,S.pct[k],pctCost(k),d+"<br>Modifier: x"+(1+S.pct[k]*0.02).toFixed(2),"pct-"+k,true);
+        h+=upgRow(nm,S.pct[k],pctCost(k),d+"<br>Modifier: x"+(1+S.pct[k]*0.05).toFixed(2),"pct-"+k,true);
       }
     }
   }
@@ -1046,7 +1046,7 @@ function doAction(act){
     S.items[slot]=(S.items[slot]||[]).filter(it=>{
       if(sellSel.has(it.id)){
         if(S.equipped[slot]===it){toast("Cannot sell an equipped item!");return true;}
-        got+=blockValue()*50*Math.pow(6,it.r);return false;
+        got+=blockValue()*25*Math.pow(3,it.r);return false;
       }return true;
     });
     if(got>0){earnDirt(got);toast("Items sold for "+fmt(got)+" dirt!");}
@@ -1301,6 +1301,21 @@ function drawSurface(w,nightBlend){
     const e=S.energy/1000;
     px(174,SURFACE-6-(20*e),5,(20*e)|0,"#C77DFF");
     px(174,SURFACE-26,5,20,"rgba(199,125,255,0.2)");
+  }
+  /* quarry mine entrance + generation ring above it */
+  const qi=S.quarry.findIndex(l=>l>0);
+  if(qi>=0){
+    px(186,SURFACE-22,26,16,"#6E6E6E");   /* rock mound */
+    px(188,SURFACE-24,22,2,"#7E7E7E");
+    px(190,SURFACE-22,2,16,"#8A5A2B");px(206,SURFACE-22,2,16,"#8A5A2B"); /* beams */
+    px(188,SURFACE-26,22,3,"#8A5A2B");    /* header beam */
+    px(194,SURFACE-16,10,10,"#1A1A1A");   /* opening */
+    const frac=Math.min(1,S.qTimers[qi]/quarryTime(qi));
+    ctx.lineWidth=3;
+    ctx.strokeStyle="#08343B";
+    ctx.beginPath();ctx.arc(199,SURFACE-36,7,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle="#7CFC5A";
+    ctx.beginPath();ctx.arc(199,SURFACE-36,7,-Math.PI/2,-Math.PI/2+Math.PI*2*frac);ctx.stroke();
   }
   /* boost indicator */
   if(S.boostUntil>now()){
