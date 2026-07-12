@@ -339,7 +339,7 @@ function diggerBlocks(){
 }
 function specialChance(){
   /* starts sparse like the original; upgrades slowly turn the whole field to ore */
-  let c=0.02+S.foreLvl*0.01+(S.gnomeLvl>0?Math.floor(S.gnomeLvl/2)*0.01:0);
+  let c=0.03+S.foreLvl*0.01+(S.gnomeLvl>0?Math.floor(S.gnomeLvl/2)*0.01:0);
   if(S.boostUntil>now()&&S.generator>=2)c*=2; /* Foreman Boost */
   return Math.min(0.85,c);
 }
@@ -1094,9 +1094,22 @@ function drawBlock(x,y,b,w){
   const t=b.type;
   if(t!=="dirt"){
     if(SPECIALS[t]){
+      /* ore blocks sit in gray stone so they clearly stand out from the dirt */
+      for(let sy=0;sy<4;sy++)for(let sx=0;sx<4;sx++){
+        const n=seededNoise(b.seed,40+sx+sy*4);
+        const g=(88+n*34)|0;
+        ctx.fillStyle="rgb("+g+","+g+","+g+")";
+        ctx.fillRect(x+sx*5,y+sy*5,5,5);
+      }
       const c=SPECIALS[t].color;
-      px(x+4,y+5,4,4,c);px(x+11,y+3,3,3,c);px(x+8,y+12,4,3,c);px(x+14,y+10,3,3,c);px(x+3,y+14,3,3,c);
-      if(t==="diamond")px(x+9,y+7,2,2,"#B9F5FC");
+      px(x+3,y+4,5,5,c);px(x+11,y+3,4,4,c);px(x+7,y+11,5,4,c);px(x+13,y+12,4,4,c);px(x+3,y+13,3,3,c);
+      px(x+4,y+5,2,2,"rgba(255,255,255,0.35)");px(x+12,y+4,1,1,"rgba(255,255,255,0.3)");
+      if(t==="diamond")px(x+8,y+12,2,2,"#FFFFFF");
+      /* redraw seams over the stone */
+      px(x,y,BS,1,"rgba(255,255,255,0.12)");
+      px(x,y,1,BS,"rgba(0,0,0,0.18)");
+      px(x,y+BS-1,BS,1,"rgba(0,0,0,0.30)");
+      px(x+BS-1,y,1,BS,"rgba(0,0,0,0.25)");
     }else if(t==="gnome"){
       px(x+7,y+3,6,4,"#E03A3A");px(x+6,y+7,8,5,"#F2C9A0");px(x+6,y+12,8,5,"#3A6EC2");
     }else if(t==="crate"){
