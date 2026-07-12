@@ -624,7 +624,7 @@ function rollItem(){
 function rollCrateBonus(){
   const p=Math.random();
   if(p<0.40){
-    const d=Math.round((blockValue()*120+quarryTotal()*90+100)*(1+Math.random()));
+    const d=Math.round((blockValue()*40+quarryTotal()*15+50)*(1+Math.random()));
     earnDirt(d);return "+"+fmt(d)+" dirt";
   }
   if(p<0.62){S.energy=Math.min(1000,S.energy+150);return "+150 energy";}
@@ -1162,7 +1162,7 @@ function doAction(act){
     if(roll<0.60){
       crateAnim={phase:"burst",kind:"item",item:rollItem(),bonusTxt:rollCrateBonus()};
     }else if(roll<0.85){
-      const d=Math.round((blockValue()*150+quarryTotal()*120+100)*(1+Math.random()));
+      const d=Math.round((blockValue()*60+quarryTotal()*25+80)*(1+Math.random()));
       earnDirt(d);
       crateAnim={phase:"burst",kind:"dirt",dirtTxt:"+"+fmt(d)+" DIRT!"};
     }else{
