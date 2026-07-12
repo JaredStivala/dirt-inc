@@ -78,21 +78,30 @@
   #panel-title{flex:1;text-align:center;font-size:15px;color:#FFF;text-shadow:2px 2px 0 #08343B;
     letter-spacing:1px;}
   #panel-tabs{display:flex;gap:4px;padding:0 8px;flex-wrap:wrap;}
-  #panel-tabs button{background:#0E434C;color:#9FD9E2;border:2px solid #0A343B;border-bottom:none;
-    font-family:inherit;font-weight:bold;font-size:10.5px;padding:6px 8px;cursor:pointer;}
+  #panel-tabs button{flex:1;background:#0E434C;color:#9FD9E2;border:2px solid #0A343B;border-bottom:none;
+    font-family:inherit;font-weight:bold;font-size:11.5px;padding:8px 6px;cursor:pointer;}
   #panel-tabs button.on{background:var(--yellow);color:#4A3A05;}
   #panel-body{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;
     border-top:3px solid #0A343B;}
   .btn-grid{display:flex;flex-direction:column;gap:10px;padding:18px 22px;}
   .btn-grid .ybtn{font-size:15px;padding:14px;}
-  .upg-row{display:flex;gap:8px;background:#0E434CE0;border:2px solid #0A343B;padding:8px;align-items:center;}
-  .upg-cost{flex:none;width:92px;text-align:center;font-size:12px;line-height:1.3;
-    font-variant-numeric:tabular-nums;}
-  .upg-cost.can{color:var(--lime);} .upg-cost.cant{color:var(--red);}
+  .upg-row{display:flex;gap:6px;align-items:stretch;}
+  .upg-card{flex:none;width:120px;padding:7px 5px;text-align:center;font-size:11px;line-height:1.45;
+    border:2px solid #0A343B;color:#FFF;text-shadow:1px 1px 0 #0007;cursor:pointer;border-radius:3px;
+    font-variant-numeric:tabular-nums;display:flex;flex-direction:column;justify-content:center;}
+  .upg-card.can{background:linear-gradient(#63C96E,#3FA34D 60%,#2E7E3A);}
+  .upg-card.cant{background:linear-gradient(#E06050,#C0392B 60%,#96281D);}
+  .upg-card.done{background:linear-gradient(#9FD9E2,#5F97A6 60%,#457A88);cursor:default;}
+  .upg-card .lvl{display:block;color:#FFE469;font-size:10px;}
+  .upg-card .cost{display:block;font-size:10px;}
+  .upg-mid{flex:1;background:linear-gradient(#B8DEEC,#8FC0D4 60%,#79ACC2);border:2px solid #0A343B;
+    color:#0A343B;font-size:11px;line-height:1.35;display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:6px;border-radius:3px;}
+  .upg-buys{flex:none;width:52px;display:flex;flex-direction:column;gap:4px;justify-content:center;}
+  .upg-buys .ybtn{font-size:10px;padding:5px 4px;}
   .upg-desc{flex:1;font-size:11.5px;color:#EAF6F8;line-height:1.35;}
   .upg-desc .lvl{color:var(--yellow);font-size:10px;}
   .upg-desc .sub{display:block;color:#9FD9E2;font-size:10px;}
-  .upg-buy{flex:none;}
   .qtimer{height:6px;background:#08343B;margin-top:4px;}
   .qtimer div{height:100%;background:var(--lime);}
   .center-note{font-size:11px;color:#C9E8ED;text-align:center;line-height:1.5;padding:8px;}
@@ -385,7 +394,9 @@ function countUpgrade(kind){
 
 /* =================== TOASTS / FLOATS =================== */
 const toastsEl=document.getElementById("toasts");
+let quietToasts=false;
 function toast(msg){
+  if(quietToasts)return;
   if(toastsEl.children.length>3)toastsEl.firstChild.remove();
   const t=document.createElement("div");t.className="toast";t.textContent=msg;
   toastsEl.appendChild(t);setTimeout(()=>t.remove(),3300);
@@ -407,7 +418,8 @@ function floatText(txt,x,y,cls){
 const COLS=16,ROWS=21,BS=20;   /* dense field like the original: 16x21 = 336 blocks per layer */
 const LW=320,LH=480,SURFACE=60;
 let rows=[];                    /* rows[r][c] = block object */
-let flashT=0;                   /* layer-clear flash */
+let layerFx=null;               /* layer-clear descent animation {k,depth,bonus,oldRows} */
+let parts=[];                   /* celebration particles */
 function hash(n){let x=Math.sin(n*127.1+S.depth*311.7)*43758.5453;return x-Math.floor(x);}
 function makeRow(depthIdx){
   const r=[];
@@ -448,10 +460,19 @@ function layerCleared(){
   S.depth++;
   const bonus=blockValue()*COLS*ROWS*0.3*(1+S.depth*0.08);
   earnDirt(bonus);
-  flashT=1;
-  toast("LAYER "+fmtInt(S.depth)+" CLEARED! +"+fmt(bonus)+" bonus dirt!");
+  layerFx={k:0,depth:S.depth,bonus,oldRows:rows};
+  spawnClearParts();
   S.row=0;S.col=0;S.dir=1;
   initField();
+}
+function spawnClearParts(){
+  parts=[];
+  for(let i=0;i<60;i++){
+    parts.push({x:Math.random()*LW,y:SURFACE+Math.random()*(LH-SURFACE),
+      vx:(Math.random()-0.5)*50,vy:-(30+Math.random()*110),
+      life:0.8+Math.random()*0.9,
+      c:["#F2D33C","#FFE469","#FFFFFF","#7CFC5A"][Math.random()*4|0],s:2+(Math.random()*2|0)});
+  }
 }
 function advance(){
   S.tapsOnBlock=0;
@@ -465,6 +486,7 @@ function advance(){
 }
 function digBlock(byTap,silent){
   const b=currentBlock();if(!b)return 0;
+  silent=silent||!!layerFx; /* no floats while the descent animation plays */
   b.dug=true;
   S.stats.blocks++;META.allBlocks++;
   bumpContract("blocks");
@@ -513,6 +535,7 @@ const cv=document.getElementById("cv");
 const ctx=cv.getContext("2d");
 let guyFrame=0,guyAnim=0;
 function handleTap(px,py){
+  if(layerFx)return; /* let the layer-clear moment breathe */
   /* tapping the glowing digger on the surface activates the generator boost */
   if(S.generator>0&&S.genCharge>=100&&py<SURFACE/LH){
     S.genCharge=0;S.boostUntil=now()+30000*(1+itemBonus("gloves")/100);
@@ -668,12 +691,19 @@ function openScreen(s,arg,noPush){
 function closePanel(){panelOpen=false;panel.classList.remove("open");navStack=[];sellMode=false;sellSel=new Set();}
 let sellMode=false,sellSel=new Set();
 
-function costRow(cost,descHtml,btnLabel,act,disabled){
+/* upgrade row styled like the original: colored name/cost card, blue description, buy buttons */
+function upgRow(name,lvl,cost,descHtml,act,multi){
   const can=S.dirt>=cost;
-  return '<div class="upg-row">'+
-    '<div class="upg-cost '+(can?"can":"cant")+'">Cost:<br>'+fmt(cost)+'</div>'+
-    '<div class="upg-desc">'+descHtml+'</div>'+
-    '<button class="ybtn small upg-buy" data-act="'+act+'"'+((disabled||!can)?" disabled":"")+'>'+btnLabel+'</button></div>';
+  let h='<div class="upg-row">'+
+    '<div class="upg-card '+(can?"can":"cant")+'" data-act="'+act+'">'+name+
+      (lvl===null?"":'<span class="lvl">Level: '+lvl+'</span>')+
+      '<span class="cost">Cost: '+fmt(cost)+'</span></div>'+
+    '<div class="upg-mid"><div>'+descHtml+'</div></div>'+
+    '<div class="upg-buys">'+
+    '<button class="ybtn small" data-act="'+act+'"'+(can?"":" disabled")+'>Buy</button>';
+  if(multi)h+='<button class="ybtn small" data-act="'+act+'" data-n="10"'+(can?"":" disabled")+'>x10</button>';
+  h+='</div></div>';
+  return h;
 }
 
 function renderScreen(){
@@ -707,43 +737,43 @@ function renderScreen(){
       '<button data-utab="pct" class="'+(tab==="pct"?"on":"")+'">Percentage</button>';
     if(tab==="main"){
       /* Tap */
-      const tapDesc=S.tapLvl<2
-        ?"Sharpen Shovel <span class='lvl'>Level: "+S.tapLvl+"</span><span class='sub'>Dig a block in "+(tapsNeeded()-1)+" tap"+(tapsNeeded()-1>1?"s":"")+" instead of "+tapsNeeded()+"</span>"
-        :"Upgrade Tap <span class='lvl'>Level: "+S.tapLvl+"</span><span class='sub'>+1 block per tap ("+(blocksPerTap()+1)+" blocks per tap)</span>";
-      h+=costRow(tapCost(),tapDesc,"Buy","up-tap");
+      if(S.tapLvl<2){
+        h+=upgRow("Sharpen Shovel",S.tapLvl,tapCost(),"Dig a block in "+(tapsNeeded()-1)+" tap"+(tapsNeeded()-1>1?"s":"")+" instead of "+tapsNeeded(),"up-tap",false);
+      }else{
+        h+=upgRow("Upgrade Tap",S.tapLvl,tapCost(),"+1 block per tap ("+(blocksPerTap()+1)+" blocks per tap)","up-tap",true);
+      }
       /* Refinery */
-      h+=costRow(refCost(),"Upgrade Refinery <span class='lvl'>Level: "+S.refLvl+"</span><span class='sub'>+1 dirt per block (now "+fmt(blockValue())+" per block)</span>","Buy","up-ref");
+      h+=upgRow("Upgrade Refinery",S.refLvl,refCost(),"+1 dirt per block (now "+fmt(blockValue())+" per block)","up-ref",true);
       /* Foreman */
-      h+=costRow(foreCost(),"Upgrade Foreman <span class='lvl'>Level: "+S.foreLvl+"</span><span class='sub'>+1% special blocks (now "+Math.round(specialChance()*100)+"%)</span>","Buy","up-fore");
+      h+=upgRow("Upgrade Foreman",S.foreLvl,foreCost(),"+1% special ore blocks (now "+Math.round(specialChance()*100)+"%)","up-fore",true);
       /* Gnomes */
-      const gNext=S.gnomeLvl%2===0?"Gnomes deliver +1 block":"+1% more special blocks";
-      h+=costRow(gnomeCost(),"Upgrade Gnomes <span class='lvl'>Level: "+S.gnomeLvl+"</span><span class='sub'>"+gNext+"</span>","Buy","up-gnome");
+      h+=upgRow("Upgrade Gnomes",S.gnomeLvl,gnomeCost(),S.gnomeLvl%2===0?"Gnomes deliver +1 block":"+1% more special blocks","up-gnome",true);
       /* Generator */
       if(S.generator<GEN_TIERS.length){
         const g=GEN_TIERS[S.generator];
-        h+=costRow(Math.round(g.cost*priceMod()),g.name+"<span class='sub'>"+g.desc+"</span>","Build","up-gen");
+        h+=upgRow(g.name,null,Math.round(g.cost*priceMod()),g.desc,"up-gen",false);
       }else{
-        h+='<div class="upg-row"><div class="upg-desc">Generator fully upgraded. Tap the glowing digger when the charge is full!</div></div>';
+        h+='<div class="center-note">Generator fully upgraded. Tap the glowing digger when the charge is full!</div>';
       }
       /* Energy tap */
       if(!S.energyTap){
-        h+=costRow(Math.round(ENERGY_TAP_COST*priceMod()),"Build the Energy Tap<span class='sub'>Absorbs 5 energy every 15s, stores up to 1,000. Unlocks the ENERGY tab and its events.</span>","Build","up-etap");
+        h+=upgRow("Build the Energy Tap",null,Math.round(ENERGY_TAP_COST*priceMod()),"Absorbs 5 energy every 15s, stores up to 1,000. Unlocks the ENERGY tab and its events.","up-etap",false);
       }
     }else if(tab==="miner"){
       h+='<div class="center-note">The Auto-Miner digs for you, even while you are away. Clear a whole layer for a big bonus!</div>';
       if(S.digLvl>0)h+='<div class="center-note" style="color:var(--lime)">Currently: '+diggerBlocks()+' block'+(diggerBlocks()>1?"s":"")+' every '+diggerInterval().toFixed(2)+'s</div>';
       const dNext=S.digLvl===0?"Unlock: automatically digs 1 block every 4s"
         :((S.digLvl+1)%2===0?"Digs ~28% faster":"+1 block per dig");
-      h+=costRow(digCost(),(S.digLvl===0?"Build the Auto-Miner":"Upgrade Auto-Miner")+" <span class='lvl'>Level: "+S.digLvl+"</span><span class='sub'>"+dNext+"</span>","Buy","up-dig");
+      h+=upgRow(S.digLvl===0?"Build Auto-Miner":"Upgrade Auto-Miner",S.digLvl,digCost(),dNext,"up-dig",true);
       if(S.digLvl>0){
-        h+=costRow(motorCost(),"Miner Motor <span class='lvl'>Level: "+S.motorLvl+"</span><span class='sub'>+8% auto-mine speed per level (now +"+(S.motorLvl*8)+"%)</span>","Buy","up-motor");
+        h+=upgRow("Miner Motor",S.motorLvl,motorCost(),"+8% auto-mine speed per level (now +"+(S.motorLvl*8)+"%)","up-motor",true);
       }
     }else{
-      const P=[["tap","Increase tapped dirt mined by 2%"],["dig","Increase digger dirt mined by 2%"],
-        ["quarry","Increase quarry dirt mined by 2%"],["ref","Increase refinery dirt gained by 2%"],
-        ["all","All dirt gained increased by 2%"]];
-      for(const [k,d] of P){
-        h+=costRow(pctCost(k),d+" <span class='lvl'>Level: "+S.pct[k]+"</span><span class='sub'>Modifier: x"+(1+S.pct[k]*0.02).toFixed(2)+"</span>","Buy","pct-"+k);
+      const P=[["tap","Tap Percent","Increase tapped dirt mined by 2%"],["dig","Digger Percent","Increase digger dirt mined by 2%"],
+        ["quarry","Quarry Percent","Increase quarry dirt mined by 2%"],["ref","Refinery Percent","Increase refinery dirt gained by 2%"],
+        ["all","Overall Percent","All dirt gained increased by 2%"]];
+      for(const [k,nm,d] of P){
+        h+=upgRow(nm,S.pct[k],pctCost(k),d+"<br>Modifier: x"+(1+S.pct[k]*0.02).toFixed(2),"pct-"+k,true);
       }
     }
   }
@@ -752,10 +782,10 @@ function renderScreen(){
     QUARRY.forEach((q,i)=>{
       const lvl=S.quarry[i];
       const desc=lvl===0
-        ?"Build a "+q.name+" <span class='sub'>+<span style='color:var(--lime)'>"+fmt(q.amt*quarryMult())+"</span> dirt per <span style='color:var(--lime)'>"+Math.round(quarryTime(i))+"s</span></span>"
-        :q.name+" <span class='lvl'>lvl. "+lvl+"</span><span class='sub'>Generating +<span style='color:var(--lime)'>"+fmt(q.amt*lvl*quarryMult())+"</span> dirt per <span style='color:var(--lime)'>"+Math.round(quarryTime(i))+"s</span></span>"+
+        ?"+"+fmt(q.amt*quarryMult())+" dirt per "+Math.round(quarryTime(i))+"s"
+        :"Generating +"+fmt(q.amt*lvl*quarryMult())+" dirt per "+Math.round(quarryTime(i))+"s"+
          '<div class="qtimer"><div style="width:'+Math.min(100,S.qTimers[i]/quarryTime(i)*100)+'%"></div></div>';
-      h+=costRow(quarryCost(i),desc,lvl===0?"Build":"Upgrade","q-"+i);
+      h+=upgRow(lvl===0?"Build "+q.name:q.name,lvl===0?null:lvl,quarryCost(i),desc,"q-"+i,lvl>0);
     });
   }
   else if(screen==="research"){
@@ -763,9 +793,10 @@ function renderScreen(){
     h+='<div class="center-note">Very powerful one-time upgrades. Check back as you play!</div>';
     RESEARCH.forEach(r=>{
       if(hasR(r.id)){
-        h+='<div class="upg-row"><div class="upg-cost" style="color:var(--lime)">DONE</div><div class="upg-desc">'+r.name+'<span class="sub">'+r.desc+'</span></div></div>';
+        h+='<div class="upg-row"><div class="upg-card done">'+r.name+'<span class="cost">DONE</span></div>'+
+           '<div class="upg-mid"><div>'+r.desc+'</div></div></div>';
       }else{
-        h+=costRow(Math.round(r.cost*priceMod()),r.name+'<span class="sub">'+r.desc+'</span>',"Buy","res-"+r.id);
+        h+=upgRow(r.name,null,Math.round(r.cost*priceMod()),r.desc,"res-"+r.id,false);
       }
     });
   }
@@ -929,6 +960,12 @@ pBody.addEventListener("click",e=>{
   const btn=e.target.closest("[data-act]");
   if(!btn||btn.disabled)return;
   const act=btn.dataset.act;
+  const n=+btn.dataset.n||1;
+  if(n>1){
+    quietToasts=true;
+    for(let i=0;i<n-1;i++)doAction(act);
+    quietToasts=false;
+  }
   doAction(act);
 });
 pTabs.addEventListener("click",e=>{
@@ -1065,12 +1102,13 @@ function px(x,y,w,h,col){ctx.fillStyle=col;ctx.fillRect(x|0,y|0,w,h);}
 function seededNoise(seed,i){let x=Math.sin(seed*12.9898+i*78.233)*43758.5453;return x-Math.floor(x);}
 
 function drawBlock(x,y,b,w){
-  if(b.dug){ /* dug-out hollow */
-    px(x,y,BS,BS,"rgba(20,12,6,0.9)");
-    for(let i=0;i<2;i++){
-      const n=seededNoise(b.seed,i);
-      px(x+2+n*14,y+3+seededNoise(b.seed,i+9)*13,2,2,"#3A2A1A");
+  if(b.dug){ /* dug-out hollow: gray-brown rubble like the original */
+    px(x,y,BS,BS,"#39312A");
+    for(let i=0;i<3;i++){
+      const n=seededNoise(b.seed,i),n2=seededNoise(b.seed,i+9);
+      px(x+2+n*15,y+2+n2*15,3,2,n>0.5?"#2A241E":"#463C32");
     }
+    px(x,y,BS,1,"rgba(0,0,0,0.25)");
     return;
   }
   const A=w.dirtA,B=w.dirtB;
@@ -1214,25 +1252,31 @@ function draw(){
   const sb=skyBlend();
   ctx.clearRect(0,0,LW,LH);
   drawSurface(w,sb.n);
-  /* full block field, surface to bottom of screen */
-  for(let r=0;r<rows.length;r++){
-    const y=SURFACE+r*BS;
-    if(y>=LH)break;
-    for(let c=0;c<COLS;c++)drawBlock(c*BS,y,rows[r][c],w);
+  /* full block field; during a layer clear the old dug-out layer slides up
+     while the fresh layer rises in from below (camera descending deeper) */
+  const H=ROWS*BS;
+  const e=layerFx?Math.min(1,layerFx.k*layerFx.k*(3-2*layerFx.k)):1; /* smoothstep ease */
+  ctx.save();ctx.beginPath();ctx.rect(0,SURFACE,LW,LH-SURFACE);ctx.clip();
+  if(layerFx){
+    drawField(layerFx.oldRows,Math.round(SURFACE-e*H),w);
+    drawField(rows,Math.round(SURFACE+H*(1-e)),w);
+  }else{
+    drawField(rows,SURFACE,w);
   }
-  /* subtle depth shading near the bottom */
-  for(let r=12;r<rows.length;r++){
-    const y=SURFACE+r*BS;if(y>=LH)break;
-    ctx.fillStyle="rgba(0,0,0,"+Math.min(0.25,(r-11)*0.03)+")";
-    ctx.fillRect(0,y,LW,BS);
+  ctx.restore();
+  /* the miner stands on top of the block he is digging (rides the seam down during a clear) */
+  let guyY,guyX;
+  if(layerFx){
+    guyY=Math.round(SURFACE+H*(1-e))-24;
+    guyX=Math.max(0,Math.min(LW-20,S.col*BS-2));
+  }else{
+    guyY=SURFACE+S.row*BS-24;
+    guyX=Math.max(0,Math.min(LW-20,S.col*BS+(S.dir>0?-2:6)));
   }
-  /* the miner stands on top of the block he is digging */
-  const guyY=SURFACE+S.row*BS-24;
-  const guyX=Math.max(0,Math.min(LW-20,S.col*BS+(S.dir>0?-2:6)));
   drawGuy(guyX,guyY,guyAnim>0?1:0);
   /* crack overlay on current block */
   const b=currentBlock();
-  if(b&&S.tapsOnBlock>0){
+  if(b&&S.tapsOnBlock>0&&!layerFx){
     const x=S.col*BS,y=SURFACE+S.row*BS;
     ctx.strokeStyle="rgba(0,0,0,0.7)";ctx.lineWidth=1;
     ctx.beginPath();
@@ -1240,13 +1284,36 @@ function draw(){
     if(S.tapsOnBlock>1){ctx.moveTo(x+15,y+5);ctx.lineTo(x+9,y+13);ctx.moveTo(x+6,y+16);ctx.lineTo(x+13,y+11);}
     ctx.stroke();
   }
+  /* celebration sparkles */
+  if(parts.length){
+    for(const p of parts){
+      ctx.globalAlpha=Math.max(0,Math.min(1,p.life));
+      ctx.fillStyle=p.c;ctx.fillRect(p.x|0,p.y|0,p.s,p.s);
+    }
+    ctx.globalAlpha=1;
+  }
+  /* layer-clear banner */
+  if(layerFx){
+    const k=layerFx.k,a=k<0.12?k/0.12:(k>0.8?Math.max(0,(1-k)/0.2):1);
+    ctx.globalAlpha=a;ctx.textAlign="center";
+    ctx.font="bold 22px monospace";
+    ctx.fillStyle="#000";ctx.fillText("LAYER "+layerFx.depth+" CLEARED!",LW/2+2,202);
+    ctx.fillStyle="#F2D33C";ctx.fillText("LAYER "+layerFx.depth+" CLEARED!",LW/2,200);
+    ctx.font="bold 14px monospace";
+    ctx.fillStyle="#000";ctx.fillText("+"+fmt(layerFx.bonus)+" DIRT",LW/2+1,227);
+    ctx.fillStyle="#7CFC5A";ctx.fillText("+"+fmt(layerFx.bonus)+" DIRT",LW/2,226);
+    ctx.globalAlpha=1;ctx.textAlign="left";
+  }
   /* tap lord glow */
   if(S.evUntil.taplord>now()){ctx.fillStyle="rgba(242,211,60,0.06)";ctx.fillRect(0,0,LW,LH);}
-  /* layer-clear flash */
-  if(flashT>0){
-    ctx.fillStyle="rgba(255,250,210,"+(flashT*0.55).toFixed(3)+")";
-    ctx.fillRect(0,0,LW,LH);
-    flashT=Math.max(0,flashT-0.04);
+}
+function drawField(rs,top,w){
+  for(let r=0;r<rs.length;r++){
+    const y=top+r*BS;
+    if(y>=LH)break;
+    if(y<=SURFACE-BS)continue;
+    for(let c=0;c<COLS;c++)drawBlock(c*BS,y,rs[r][c],w);
+    if(r>=12){ctx.fillStyle="rgba(0,0,0,"+Math.min(0.25,(r-11)*0.03)+")";ctx.fillRect(0,y,LW,BS);}
   }
 }
 
@@ -1257,6 +1324,12 @@ function tick(){
   let dt=(t-last)/1000;last=t;
   if(dt>2)dt=2;
   if(guyAnim>0)guyAnim--;
+  /* layer-clear descent animation + sparkles */
+  if(layerFx){layerFx.k+=dt/1.25;if(layerFx.k>=1)layerFx=null;}
+  if(parts.length){
+    for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=50*dt;p.life-=dt;}
+    parts=parts.filter(p=>p.life>0);
+  }
   /* day cycle */
   const before=Math.floor(S.dayT/DAY_LEN);
   S.dayT+=dt;
