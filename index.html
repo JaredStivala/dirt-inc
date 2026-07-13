@@ -136,11 +136,11 @@
   .gift{width:96px;height:96px;image-rendering:pixelated;cursor:pointer;
     animation:giftbob 1.1s ease-in-out infinite;}
   @keyframes giftbob{0%,100%{transform:translateY(0) rotate(-2deg);}50%{transform:translateY(-7px) rotate(2deg);}}
-  .gift.burst{animation:giftshake .6s ease-in-out infinite;}
+  .gift.burst{animation:giftshake .45s ease-in-out infinite;}
   @keyframes giftshake{0%,100%{transform:scale(1.05);}20%{transform:rotate(-9deg) scale(1.1);}
     40%{transform:rotate(9deg) scale(1.15);}60%{transform:rotate(-11deg) scale(1.2);}80%{transform:rotate(11deg) scale(1.22);}}
   .burst-wrap{position:relative;width:160px;height:160px;display:flex;align-items:center;justify-content:center;}
-  .burst-halo{position:absolute;inset:0;border-radius:50%;animation:halo .95s ease-out forwards;}
+  .burst-halo{position:absolute;inset:0;border-radius:50%;animation:halo .55s ease-out forwards;}
   @keyframes halo{0%{transform:scale(.15);opacity:0;}30%{opacity:.95;}100%{transform:scale(2.2);opacity:0;}}
   .reveal-card{border:3px solid;padding:18px 24px;text-align:center;background:#101418F0;border-radius:4px;
     animation:pop .4s cubic-bezier(.2,1.6,.4,1);}
@@ -415,14 +415,16 @@ function countUpgrade(kind){
 /* =================== TOASTS / FLOATS =================== */
 const toastsEl=document.getElementById("toasts");
 let quietToasts=false;
-function toast(msg){
+const toastLast={};
+function toast(msg,key,gap){
   if(quietToasts)return;
+  if(key){const t=now();if(toastLast[key]&&t-toastLast[key]<(gap||3000))return;toastLast[key]=t;}
   if(toastsEl.children.length>3)toastsEl.firstChild.remove();
   const t=document.createElement("div");t.className="toast";t.textContent=msg;
   toastsEl.appendChild(t);setTimeout(()=>t.remove(),3300);
 }
 const fxLayer=document.getElementById("fx-layer");
-let floatCount=0;
+let floatCount=0,lastAutoFloat=0;
 function floatText(txt,x,y,cls){
   if(floatCount>12)return;floatCount++;
   const el=document.createElement("div");
@@ -519,13 +521,18 @@ function digBlock(byTap,silent){
     label=SPECIALS[b.type].name+"!";
   }
   if(b.type==="gnome"){spawnGnome();val=0;}
-  else if(b.type==="crate"){S.crateCount++;S.stats.crates++;bumpContract("crates");toast("You found an item crate!");val=blockValue();}
+  else if(b.type==="crate"){S.crateCount++;S.stats.crates++;bumpContract("crates");toast("You found an item crate!","crate",3000);val=blockValue();}
   else if(b.type==="energy"){S.energy=Math.min(1000,S.energy+50);val=0;if(!silent)floatText("+50 Energy",gx(S.col),gy(S.row),"special");}
   if(val>0){
     val*=byTap?tapMult():pctMult("dig");
     earnDirt(val);
-    if(!silent)floatText("+"+fmt(val),gx(S.col),gy(S.row),label?"special":"");
-    if(label&&!silent)floatText(label,gx(S.col),gy(S.row)-16,"special");
+    /* taps always get feedback; auto-dig floats are throttled so fast miners don't wall the screen */
+    const loud=!silent&&(byTap||now()-lastAutoFloat>450);
+    if(loud){
+      floatText("+"+fmt(val),gx(S.col),gy(S.row),label?"special":"");
+      if(label)floatText(label,gx(S.col),gy(S.row)-16,"special");
+      if(!byTap)lastAutoFloat=now();
+    }
   }
   advance();
   return val;
@@ -548,7 +555,7 @@ function spawnGnome(){
   }
   val*=gBoost;
   earnDirt(val);
-  toast("A gnome delivered "+fmt(val)+" dirt!");
+  toast("A gnome delivered "+fmt(val)+" dirt!","gnome",4000);
 }
 
 /* =================== TAP INPUT =================== */
@@ -1155,7 +1162,9 @@ function doAction(act){
     if(r&&!hasR(id)&&spend(Math.round(r.cost*priceMod()))){S.research[id]=true;countUpgrade();
       toast(r.name.split(" ")[0]+" research complete!");}}
   else if(act==="crate-tap"){
-    if(crateAnim&&crateAnim.phase==="burst")return; /* let the burst play out */
+    if(crateAnim&&crateAnim.phase==="burst"){ /* impatient tap skips straight to the reveal */
+      crateAnim.phase="reveal";checkAch();renderHud();renderScreen();return;
+    }
     if(S.crateCount<1){crateAnim=null;toast("Not enough crates!");checkAch();renderHud();renderScreen();return;}
     S.crateCount--;
     const roll=Math.random();
@@ -1178,7 +1187,7 @@ function doAction(act){
         crateAnim.phase="reveal";
         if(screen==="crates"&&panelOpen)renderScreen();
       }
-    },950);
+    },500);
   }
   else if(act==="sellmode"){sellMode=!sellMode;sellSel=new Set();}
   else if(act==="sell-sel"){
